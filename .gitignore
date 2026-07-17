@@ -1,0 +1,18 @@
+# STM32CubeIDE specific files
+.metadata/
+.settings/
+*.launch
+*.log
+
+# Build outputs
+Debug/
+Release/
+
+# Common compilation junk files
+*.o
+*.su
+*.d
+*.elf
+*.bin
+*.hex
+*.map
