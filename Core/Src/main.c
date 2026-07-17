@@ -64,6 +64,7 @@ volatile uint8_t cmd_ready = 0;
 //volatile uint8_t cmd_mode = 0;
 volatile uint8_t command_mode = 0;
 volatile uint8_t redraw_command_screen = 0;
+volatile uint8_t redraw_dashboard = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -101,93 +102,55 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     {
         uint8_t ch = debug_rx[0];
 
-        char dbg[40];
-
-        sprintf(dbg,
-                "RX=%02X mode=%u idx=%u\r\n",
-                ch,
-                command_mode,
-                cmd_index);
-
-        HAL_UART_Transmit(debug_uart,
-                          (uint8_t *)dbg,
-                          strlen(dbg),
-                          HAL_MAX_DELAY);
-
-        if (command_mode)
+        if (ch == '\r')
         {
-            HAL_UART_Transmit(debug_uart,
-                              &ch,
-                              1,
-                              HAL_MAX_DELAY);
+            if (command_mode == 0)
+            {
+                /* Enter command mode. */
+                command_mode = 1;
+                cmd_index = 0;
+                cmd_buffer[0] = '\0';
+
+                redraw_command_screen = 1;
+            }
+            else
+            {
+                /* Finish the current command line. */
+                cmd_buffer[cmd_index] = '\0';
+
+                if (cmd_index == 0)
+                {
+                    /* Blank command: return to dashboard. */
+                    command_mode = 0;
+                    redraw_dashboard = 1;
+                }
+                else
+                {
+                    /* Let the main loop execute the command. */
+                    cmd_ready = 1;
+                }
+
+                cmd_index = 0;
+            }
         }
-
-        if ((ch == '\r') || (ch == '\n'))
+        else if (ch == '\n')
         {
-        	if (command_mode == 0)
-        	{
-        	    command_mode = 1;
-
-        	    cmd_index = 0;
-        	    cmd_buffer[0] = '\0';
-
-        	    redraw_command_screen = 1;
-        	}
-        	else
-        	{
-        	    char dbg[40];
-
-        	    sprintf(dbg,
-        	            "\r\ncmd_index=%u\r\n",
-        	            cmd_index);
-
-        	    HAL_UART_Transmit(debug_uart,
-        	                      (uint8_t *)dbg,
-        	                      strlen(dbg),
-        	                      HAL_MAX_DELAY);
-
-        	    cmd_buffer[cmd_index] = '\0';
-
-        	    if (cmd_index == 0)
-        	    {
-        	        HAL_UART_Transmit(debug_uart,
-        	                          (uint8_t *)"EMPTY\r\n",
-        	                          7,
-        	                          HAL_MAX_DELAY);
-
-        	        command_mode = 0;
-
-        	        DisplayWelcome(debug_uart);
-        	        RefreshDashboard(debug_uart);
-        	    }
-        	    else
-        	    {
-        	        HAL_UART_Transmit(debug_uart,
-        	                          (uint8_t *)"COMMAND\r\n",
-        	                          9,
-        	                          HAL_MAX_DELAY);
-
-        	        cmd_ready = 1;
-        	    }
-
-        	    cmd_index = 0;
-        	}        }
+            /* Ignore LF in case another terminal sends CR+LF. */
+        }
         else if (command_mode)
         {
-            if (cmd_index < (CMD_BUFFER_SIZE - 1))
+            if (cmd_index < (CMD_BUFFER_SIZE - 1U))
             {
-                cmd_buffer[cmd_index++] = ch;
+                cmd_buffer[cmd_index++] = (char)ch;
             }
         }
 
         HAL_UART_Receive_IT(debug_uart, debug_rx, 1);
     }
+
     if (huart == eric_uart)
     {
         ERIC_UART_RxByte(eric_uart_rx);
-
-//        HAL_UART_Transmit(debug_uart, &eric_uart_rx, 1, HAL_MAX_DELAY);
-
         HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1);
     }
 }
@@ -273,33 +236,34 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  ERIC_Task();
 	  uint8_t c;
-	  static uint8_t old_redraw = 0xFF;
+//	  static uint8_t old_redraw = 0xFF;
 
-	  if (redraw_command_screen != old_redraw)
-	  {
-	      char dbg[32];
-
-	      sprintf(dbg,
-	              "redraw=%u\r\n",
-	              redraw_command_screen);
-
-	      HAL_UART_Transmit(debug_uart,
-	                        (uint8_t *)dbg,
-	                        strlen(dbg),
-	                        HAL_MAX_DELAY);
-
-	      old_redraw = redraw_command_screen;
-	  }
 	  if (redraw_command_screen)
 	  {
-	      HAL_UART_Transmit(debug_uart,
-	                        (uint8_t *)"DRAW\r\n",
-	                        6,
-	                        HAL_MAX_DELAY);
-
 	      redraw_command_screen = 0;
+	      DisplayCommandScreen(debug_uart);
 	  }
 
+	  if (redraw_dashboard)
+	  {
+	      redraw_dashboard = 0;
+
+	      DisplayWelcome(debug_uart);
+	      RefreshDashboard(debug_uart);
+
+	      /*
+	       * Prevent the periodic code from immediately treating the
+	       * current second/minute as a new update.
+	       */
+	      RTC_TimeTypeDef currentTime;
+	      RTC_DateTypeDef currentDate;
+
+	      HAL_RTC_GetTime(&hrtc, &currentTime, RTC_FORMAT_BIN);
+	      HAL_RTC_GetDate(&hrtc, &currentDate, RTC_FORMAT_BIN);
+
+	      lastSecond = currentTime.Seconds;
+	      lastMinute = currentTime.Minutes;
+	  }
 	  while (ERIC_ReadByte(&c))
 	  {
 	      HAL_UART_Transmit(debug_uart, &c, 1, HAL_MAX_DELAY);
@@ -589,16 +553,6 @@ void TerminalCommands(UART_HandleTypeDef *huart)
     }
     else if (strncmp(cmd_buffer, "setdt ", 6) == 0)
     {
-    	if (strlen(cmd_buffer) != 25)
-    	{
-    	    HAL_UART_Transmit(debug_uart,
-    	                      (uint8_t *)"Bad format\r\n",
-    	                      12,
-    	                      HAL_MAX_DELAY);
-
-    	    return;
-    	}
-
         uint8_t year;
         uint8_t month;
         uint8_t day;
@@ -606,72 +560,154 @@ void TerminalCommands(UART_HandleTypeDef *huart)
         uint8_t minute;
         uint8_t second;
 
+        uint16_t fullYear;
         HAL_StatusTypeDef status;
 
-        uint16_t fullYear;
+        bool format_ok = true;
+        size_t length = strlen(cmd_buffer);
 
-        fullYear =
-                (cmd_buffer[6]  - '0') * 1000 +
-                (cmd_buffer[7]  - '0') * 100  +
-                (cmd_buffer[8]  - '0') * 10   +
-                (cmd_buffer[9]  - '0');
+        /*
+         * Expected format:
+         *
+         * setdt 2026-07-17 18:33:00
+         *
+         * Character positions:
+         *
+         *  0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+         *  s e t d t   2 0 2 6  -  0  7  -  1  7     1  8  :  3  3  :  0  0
+         */
 
-        year = fullYear - 2000;
+        if (length != 25U)
+        {
+            format_ok = false;
+        }
 
-        month =
-                (cmd_buffer[11] - '0') * 10 +
-                (cmd_buffer[12] - '0');
+        if (format_ok)
+        {
+            if ((cmd_buffer[10] != '-') ||
+                (cmd_buffer[13] != '-') ||
+                (cmd_buffer[16] != ' ') ||
+                (cmd_buffer[19] != ':') ||
+                (cmd_buffer[22] != ':'))
+            {
+                format_ok = false;
+            }
+        }
 
-        day =
-                (cmd_buffer[14] - '0') * 10 +
-                (cmd_buffer[15] - '0');
+        /*
+         * Check that every non-separator character is a decimal digit.
+         */
+        if (format_ok)
+        {
+            for (uint8_t i = 6U; i < 25U; i++)
+            {
+                if ((i == 10U) ||
+                    (i == 13U) ||
+                    (i == 16U) ||
+                    (i == 19U) ||
+                    (i == 22U))
+                {
+                    continue;
+                }
 
-        hour =
-                (cmd_buffer[17] - '0') * 10 +
-                (cmd_buffer[18] - '0');
+                if ((cmd_buffer[i] < '0') ||
+                    (cmd_buffer[i] > '9'))
+                {
+                    format_ok = false;
+                    break;
+                }
+            }
+        }
 
-        minute =
-                (cmd_buffer[20] - '0') * 10 +
-                (cmd_buffer[21] - '0');
+        if (!format_ok)
+        {
+            const char message[] =
+                "Bad format. Use:\r\n"
+                "setdt yyyy-mm-dd hh:mm:ss\r\n";
 
-        second =
-                (cmd_buffer[23] - '0') * 10 +
-                (cmd_buffer[24] - '0');
+            HAL_UART_Transmit(huart,
+                              (uint8_t *)message,
+                              strlen(message),
+                              HAL_MAX_DELAY);
+        }
+        else
+        {
+            /*
+             * Parse the fixed-position fields.
+             */
+            fullYear =
+                (cmd_buffer[6] - '0') * 1000U +
+                (cmd_buffer[7] - '0') * 100U +
+                (cmd_buffer[8] - '0') * 10U +
+                (cmd_buffer[9] - '0');
 
-        sprintf(buffer,
-                "y=%u m=%u d=%u %02u:%02u:%02u\r\n",
-                year,
-                month,
-                day,
-                hour,
-                minute,
-                second);
+            year = (uint8_t)(fullYear - 2000U);
 
-        HAL_UART_Transmit(debug_uart,
-                          (uint8_t *)buffer,
-                          strlen(buffer),
-                          HAL_MAX_DELAY);
+            month =
+                (uint8_t)(((cmd_buffer[11] - '0') * 10U) +
+                           (cmd_buffer[12] - '0'));
 
-        status = RTC_SetDateTime(year,
-                                 month,
-                                 day,
-                                 hour,
-                                 minute,
-                                 second);
+            day =
+                (uint8_t)(((cmd_buffer[14] - '0') * 10U) +
+                           (cmd_buffer[15] - '0'));
 
-        sprintf(buffer,
-                "RTC status=%d\r\n",
-                status);
+            hour =
+                (uint8_t)(((cmd_buffer[17] - '0') * 10U) +
+                           (cmd_buffer[18] - '0'));
 
-        HAL_UART_Transmit(debug_uart,
-                          (uint8_t *)buffer,
-                          strlen(buffer),
-                          HAL_MAX_DELAY);
+            minute =
+                (uint8_t)(((cmd_buffer[20] - '0') * 10U) +
+                           (cmd_buffer[21] - '0'));
 
-        HAL_UART_Transmit(debug_uart,
-                          (uint8_t *)"\r\nCommand> ",
-                          11,
-                          HAL_MAX_DELAY);
+            second =
+                (uint8_t)(((cmd_buffer[23] - '0') * 10U) +
+                           (cmd_buffer[24] - '0'));
+
+            /*
+             * This is where the value-range validation goes:
+             * after parsing, before RTC_SetDateTime().
+             */
+            if ((fullYear < 2000U) ||
+                (fullYear > 2099U) ||
+                (month < 1U) ||
+                (month > 12U) ||
+                (day < 1U) ||
+                (day > 31U) ||
+                (hour > 23U) ||
+                (minute > 59U) ||
+                (second > 59U))
+            {
+                const char message[] =
+                    "Date or time value out of range\r\n";
+
+                HAL_UART_Transmit(huart,
+                                  (uint8_t *)message,
+                                  strlen(message),
+                                  HAL_MAX_DELAY);
+            }
+            else
+            {
+                /*
+                 * Only call the RTC function after all validation passes.
+                 */
+                status = RTC_SetDateTime(year,
+                                         month,
+                                         day,
+                                         hour,
+                                         minute,
+                                         second);
+
+                snprintf(buffer,
+                         sizeof(buffer),
+                         "RTC status=%d\r\n",
+                         status);
+
+                HAL_UART_Transmit(huart,
+                                  (uint8_t *)buffer,
+                                  strlen(buffer),
+                                  HAL_MAX_DELAY);
+            }
+        }
     }
     else
     {
@@ -680,16 +716,14 @@ void TerminalCommands(UART_HandleTypeDef *huart)
     	                  (uint8_t *)"Unknown command\r\n",
     	                  17,
     	                  HAL_MAX_DELAY);
-        HAL_UART_Transmit(debug_uart,
-                          (uint8_t *)"\r\nCommand> ",
-                          11,
-                          HAL_MAX_DELAY);
     }
     if (command_mode)
     {
-        HAL_UART_Transmit(debug_uart,
-                          (uint8_t *)"\r\nCommand> ",
-                          11,
+        const char prompt[] = "\r\nCommand> ";
+
+        HAL_UART_Transmit(huart,
+                          (uint8_t *)prompt,
+                          strlen(prompt),
                           HAL_MAX_DELAY);
     }
 }
