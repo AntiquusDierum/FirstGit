@@ -17,9 +17,13 @@
  * We will move them into this module during the next stage of the
  * refactor, once this first extraction has been built and tested.
  */
-extern char cmd_buffer[];
-extern volatile uint8_t cmd_ready;
-extern volatile uint8_t command_mode;
+static char cmd_buffer[CMD_BUFFER_SIZE];
+static uint8_t cmd_index = 0;
+
+static volatile uint8_t cmd_ready = 0;
+static volatile uint8_t command_mode = 0;
+static volatile uint8_t redraw_command_screen = 0;
+static volatile uint8_t redraw_dashboard = 0;
 
 /*
  * These application functions currently remain in main.c.
@@ -39,7 +43,7 @@ extern HAL_StatusTypeDef RTC_SetDateTime(uint8_t year,
                                          uint8_t minute,
                                          uint8_t second);
 
-void DisplayCommandScreen(UART_HandleTypeDef *huart)
+void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
 {
     const char text[] =
         "========================================\r\n"
@@ -60,7 +64,7 @@ void DisplayCommandScreen(UART_HandleTypeDef *huart)
                       HAL_MAX_DELAY);
 }
 
-void DisplayOptions(UART_HandleTypeDef *huart)
+void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart)
 {
     const char options[] =
         "Available commands:\r\n"
@@ -77,7 +81,7 @@ void DisplayOptions(UART_HandleTypeDef *huart)
                       HAL_MAX_DELAY);
 }
 
-void TerminalCommands(UART_HandleTypeDef *huart)
+void TerminalConsole_Task(UART_HandleTypeDef *huart)
 {
     char buffer[80];
 
@@ -109,7 +113,7 @@ void TerminalCommands(UART_HandleTypeDef *huart)
 
     if (strcmp(cmd_buffer, "help") == 0)
     {
-        DisplayOptions(huart);
+        TerminalConsole_ShowHelp(huart);
     }
     else if (strcmp(cmd_buffer, "refresh") == 0)
     {
@@ -293,5 +297,89 @@ void TerminalCommands(UART_HandleTypeDef *huart)
                           (uint8_t *)prompt,
                           strlen(prompt),
                           HAL_MAX_DELAY);
+    }
+}
+
+uint8_t TerminalConsole_IsActive(void)
+{
+    return command_mode;
+}
+
+uint8_t TerminalConsole_RedrawDashboard(void)
+{
+    uint8_t value = redraw_dashboard;
+    redraw_dashboard = 0;
+    return value;
+}
+
+uint8_t TerminalConsole_RedrawCommandScreen(void)
+{
+    uint8_t value = redraw_command_screen;
+    redraw_command_screen = 0;
+    return value;
+}
+
+void TerminalConsole_ClearRedraws(void)
+{
+    redraw_dashboard = 0;
+    redraw_command_screen = 0;
+}
+
+void TerminalConsole_RxByte(uint8_t ch)
+{
+    if (ch == '\r')
+    {
+        if (command_mode == 0U)
+        {
+            /*
+             * Enter command mode.
+             */
+            command_mode = 1U;
+            cmd_index = 0U;
+            cmd_buffer[0] = '\0';
+
+            redraw_command_screen = 1U;
+        }
+        else
+        {
+            /*
+             * Finish the current command line.
+             */
+            cmd_buffer[cmd_index] = '\0';
+
+            if (cmd_index == 0U)
+            {
+                /*
+                 * Blank command: leave command mode and return
+                 * to the dashboard.
+                 */
+                command_mode = 0U;
+                redraw_dashboard = 1U;
+            }
+            else
+            {
+                /*
+                 * A complete command is ready for the main loop.
+                 */
+                cmd_ready = 1U;
+            }
+
+            cmd_index = 0U;
+        }
+    }
+    else if (ch == '\n')
+    {
+        /*
+         * Ignore LF. This allows terminals configured for CR+LF
+         * to work without entering an extra blank command.
+         */
+    }
+    else if (command_mode != 0U)
+    {
+        if (cmd_index < (CMD_BUFFER_SIZE - 1U))
+        {
+            cmd_buffer[cmd_index] = (char)ch;
+            cmd_index++;
+        }
     }
 }

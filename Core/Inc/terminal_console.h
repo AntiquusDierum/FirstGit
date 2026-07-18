@@ -12,12 +12,12 @@
 /*
  * Display the command-console heading and initial prompt.
  */
-void DisplayCommandScreen(UART_HandleTypeDef *huart);
+void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart);
 
 /*
  * Display the list of supported commands.
  */
-void DisplayOptions(UART_HandleTypeDef *huart);
+void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart);
 
 /*
  * Execute a completed command from cmd_buffer.
@@ -25,6 +25,16 @@ void DisplayOptions(UART_HandleTypeDef *huart);
  * The command buffer and command-ready flag are still owned by main.c
  * during this first stage of the refactor.
  */
-void TerminalCommands(UART_HandleTypeDef *huart);
+void TerminalConsole_Task(UART_HandleTypeDef *huart);
+
+uint8_t TerminalConsole_IsActive(void);
+
+uint8_t TerminalConsole_RedrawDashboard(void);
+
+uint8_t TerminalConsole_RedrawCommandScreen(void);
+
+void TerminalConsole_ClearRedraws(void);
+
+void TerminalConsole_RxByte(uint8_t ch);
 
 #endif /* TERMINAL_CONSOLE_H */

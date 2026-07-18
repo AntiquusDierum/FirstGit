@@ -59,13 +59,6 @@ uint32_t adcBuffer[ADC_CHANS];
 uint32_t adcValues[ADC_CHANS];
 uint8_t userLoopA = 0;
 uint8_t userLoopC = 0;
-char cmd_buffer[CMD_BUFFER_SIZE];
-uint8_t cmd_index = 0;
-volatile uint8_t cmd_ready = 0;
-//volatile uint8_t cmd_mode = 0;
-volatile uint8_t command_mode = 0;
-volatile uint8_t redraw_command_screen = 0;
-volatile uint8_t redraw_dashboard = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,56 +89,14 @@ void DisplayTime(UART_HandleTypeDef *huart);
 /* USER CODE BEGIN 0 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-    if (huart == debug_uart)
-    {
-        uint8_t ch = debug_rx[0];
+	if (huart == debug_uart)
+	{
+	    TerminalConsole_RxByte(debug_rx[0]);
 
-        if (ch == '\r')
-        {
-            if (command_mode == 0)
-            {
-                /* Enter command mode. */
-                command_mode = 1;
-                cmd_index = 0;
-                cmd_buffer[0] = '\0';
-
-                redraw_command_screen = 1;
-            }
-            else
-            {
-                /* Finish the current command line. */
-                cmd_buffer[cmd_index] = '\0';
-
-                if (cmd_index == 0)
-                {
-                    /* Blank command: return to dashboard. */
-                    command_mode = 0;
-                    redraw_dashboard = 1;
-                }
-                else
-                {
-                    /* Let the main loop execute the command. */
-                    cmd_ready = 1;
-                }
-
-                cmd_index = 0;
-            }
-        }
-        else if (ch == '\n')
-        {
-            /* Ignore LF in case another terminal sends CR+LF. */
-        }
-        else if (command_mode)
-        {
-            if (cmd_index < (CMD_BUFFER_SIZE - 1U))
-            {
-                cmd_buffer[cmd_index++] = (char)ch;
-            }
-        }
-
-        HAL_UART_Receive_IT(debug_uart, debug_rx, 1);
-    }
-
+	    HAL_UART_Receive_IT(debug_uart,
+	                        debug_rx,
+	                        1);
+	}
     if (huart == eric_uart)
     {
         ERIC_UART_RxByte(eric_uart_rx);
@@ -236,16 +187,13 @@ int main(void)
 	  uint8_t c;
 //	  static uint8_t old_redraw = 0xFF;
 
-	  if (redraw_command_screen)
+	  if (TerminalConsole_RedrawCommandScreen())
 	  {
-	      redraw_command_screen = 0;
-	      DisplayCommandScreen(debug_uart);
+	      TerminalConsole_ShowScreen(debug_uart);
 	  }
 
-	  if (redraw_dashboard)
+	  if (TerminalConsole_RedrawDashboard())
 	  {
-	      redraw_dashboard = 0;
-
 	      DisplayWelcome(debug_uart);
 	      RefreshDashboard(debug_uart);
 
@@ -275,7 +223,7 @@ int main(void)
 	      }
 	  }
 
-	  TerminalCommands(debug_uart);
+	  TerminalConsole_Task(debug_uart);
 
 	  RTC_TimeTypeDef sTime;
 	  RTC_DateTypeDef sDate;
@@ -286,7 +234,7 @@ int main(void)
 	  if (sTime.Seconds != lastSecond)
 	  {
 	      lastSecond = sTime.Seconds;
-	      if (!command_mode)
+	      if (!TerminalConsole_IsActive())
 	      {
 	    	  DisplayTime(debug_uart);
 	      }
@@ -296,7 +244,7 @@ int main(void)
 	  {
 	      lastMinute = sTime.Minutes;
 
-	      if (!command_mode)
+	      if (!TerminalConsole_IsActive())
 	      {
 	    	  DisplayDate(debug_uart);
 
@@ -312,7 +260,7 @@ int main(void)
 	  {
 	      lastRefresh = HAL_GetTick();
 
-	      if (!command_mode)
+	      if (!TerminalConsole_IsActive())
 	      {
 	    	  RefreshDashboard(debug_uart);
 	      }
@@ -355,20 +303,6 @@ int main(void)
 
 		  }
 	  }
-
-
-
-//	    HAL_GPIO_TogglePin(GPIOA, LED_Heartbeat_Pin);
-//	    HAL_GPIO_WritePin(GPIOA, LD2_Pin|LED_Heartbeat_Pin|LED_Status_Pin|En_Relay1_Pin, GPIO_PIN_RESET);
-//	    HAL_Delay(500);      // 500 ms
-//	    HAL_GPIO_TogglePin(GPIOA, LED_Status_Pin);
-//	    HAL_Delay(500);      // 500 ms
-//	    HAL_GPIO_TogglePin(GPIOA, En_Relay1_Pin);
-//	    HAL_Delay(500);      // 500 ms
-//	    HAL_GPIO_TogglePin(GPIOB, En_Relay2_Pin);
-//	    HAL_Delay(500);      // 500 ms
-
-
   }
   /* USER CODE END 3 */
 }
@@ -427,7 +361,7 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 void DisplayWelcome(UART_HandleTypeDef * huart) {
 	DisplayTable(huart);
-//	DisplayOptions(huart);
+//	TerminalConsole_ShowHelp(huart);
 	DisplayPrompt(huart);
 }
 void DisplayTable(UART_HandleTypeDef * huart) {
