@@ -14,13 +14,31 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
-extern uint32_t adcValues[ADC_CHANS];
-extern uint8_t userLoopA;
-extern uint8_t userLoopC;
+static uint32_t dashboardAdcValues[ADC_CHANS];
 
 static void Dashboard_DisplayTable(UART_HandleTypeDef *huart);
 
+void Dashboard_UpdateAdcValues(const uint32_t *values, uint8_t count)
+{
+    uint8_t i;
+
+    if (values == NULL)
+    {
+        return;
+    }
+
+    if (count > ADC_CHANS)
+    {
+        count = ADC_CHANS;
+    }
+
+    for (i = 0U; i < count; i++)
+    {
+        dashboardAdcValues[i] = values[i];
+    }
+}
 void Dashboard_Show(UART_HandleTypeDef * huart) {
 	Dashboard_DisplayTable(huart);
 	DisplayPrompt(huart);
@@ -76,7 +94,6 @@ void Dashboard_DisplayTemperature(UART_HandleTypeDef * huart) {
 	sht_celsius = SHT2x_GetTemperature(1);
 
 	sprintf(value_str,"%.1f°C",sht_celsius);
-	userLoopC = LOOP_HUMD;
 
 	DrwCellAt(LEFT_COL,16,name_str,value_str,huart);
 }
@@ -88,7 +105,6 @@ void Dashboard_DisplayHumidity(UART_HandleTypeDef * huart) {
 	sht_humid = SHT2x_GetRelativeHumidity(1);
 
 	sprintf(value_str,"%.1f%%",sht_humid);
-	userLoopC = LOOP_TEMP;
 
 	DrwCellAt(RIGHT_COL,16,name_str,value_str,huart);
 }
@@ -97,8 +113,7 @@ void Dashboard_Display9V(UART_HandleTypeDef * huart) {
 	char value_str[128] = "\0";
 	float vin9v = 0;
 
-	vin9v = ( (float)adcValues[ADC_9V] / 4095 ) * 3.3 * 3;
-	userLoopA = ADC_5V;
+	vin9v = ( (float)dashboardAdcValues[ADC_9V] / 4095.0f ) * 3.3f * 3.0f;
 
 	sprintf(value_str,"%.3fV",vin9v);
 
@@ -109,8 +124,7 @@ void Dashboard_Display5V(UART_HandleTypeDef * huart) {
 	char value_str[128] = "\0";
 	float nucleo5v = 0;
 
-	nucleo5v = ( ( (float)adcValues[ADC_5V] / 4095 ) * 3.3 * 1.667 );  // 1.667 = 10K / (10K + 15K)
-	userLoopA = ADC_3V3V;
+	nucleo5v = ( ( (float)dashboardAdcValues[ADC_5V] / 4095.0f ) * 3.3f * 1.667f );  // 1.667 = 10K / (10K + 15K)
 
 	sprintf(value_str,"%.3fV",nucleo5v);
 
@@ -121,9 +135,8 @@ void Dashboard_Display3V3(UART_HandleTypeDef * huart) {
 	char value_str[128] = "\0";
 	float nucleo3v3v = 0;
 
-	nucleo3v3v = (float)adcValues[ADC_3V3V] / 4095 * 3.3 * 1.067;
-//	nucleo3v3v = (float)adcValues[ADC_MAIN3V] * ADC_SCALE3V;
-	userLoopA = ADC_ILORA;
+	nucleo3v3v = (float)dashboardAdcValues[ADC_3V3V] / 4095.0f * 3.3f * 1.067f;
+//	nucleo3v3v = (float)dashboardAdcValues[ADC_MAIN3V] * ADC_SCALE3V;
 
 	sprintf(value_str,"%.2fV",nucleo3v3v);
 
@@ -134,8 +147,7 @@ void Dashboard_DisplayLoRaCurrent(UART_HandleTypeDef * huart) {
 	char value_str[128] = "\0";
 	float lorai = 0;
 
-	lorai = ( ( (float)adcValues[ADC_ILORA] / 4095 ) * 2660 );  // 2660 = 1000 * 3.3 / ( 0.1 * 0.0002 * 62000 ) ie Rs * 200µ * Rl
-	userLoopA = ADC_9V;
+	lorai = ( ( (float)dashboardAdcValues[ADC_ILORA] / 4095.0f ) * 2660.0f );  // 2660 = 1000 * 3.3 / ( 0.1 * 0.0002 * 62000 ) ie Rs * 200µ * Rl
 
 	sprintf(value_str,"%.2fmA",lorai);
 

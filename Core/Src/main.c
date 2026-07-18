@@ -57,9 +57,6 @@ uint8_t debug_rx[5];
 uint8_t eric_uart_rx;
 uint8_t debug_tx[80];
 uint32_t adcBuffer[ADC_CHANS];
-uint32_t adcValues[ADC_CHANS];
-uint8_t userLoopA = 0;
-uint8_t userLoopC = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -89,11 +86,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1);
     }
 }
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadcHandle)
 {
-	for (int i = 0; i < ADC_CHANS; i++) {
-		adcValues[i] = adcBuffer[i];	// store the values in adcValues from adcBuffer
-	}
+    if (hadcHandle == &hadc)
+    {
+        Dashboard_UpdateAdcValues(adcBuffer, ADC_CHANS);
+    }
 }
 /* USER CODE END 0 */
 
@@ -266,16 +264,6 @@ int main(void)
 		  		  break;
 
 		  	  case 400:
-//	  			  Dashboard_StreamHumidity(debug_uart);
-		  		  if (userLoopA == ADC_9V) {
-//		  			  Dashboard_Display9V(debug_uart);
-		  		  } else if (userLoopA == ADC_5V) {
-//		  			  Dashboard_Display5V(debug_uart);
-		  		  } else if (userLoopA == ADC_3V3V) {
-//		  			  Dashboard_Display3V3(debug_uart);
-		  		  } else {
-//		  			  Dashboard_DisplayLoRaCurrent(debug_uart);
-		  		  }
 		  		  break;
 
 		  }

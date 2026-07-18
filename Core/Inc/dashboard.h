@@ -30,4 +30,6 @@ void Dashboard_DisplayHeartbeat(UART_HandleTypeDef *huart);
 void Dashboard_StreamTemperature(UART_HandleTypeDef *huart);
 void Dashboard_StreamHumidity(UART_HandleTypeDef *huart);
 
+void Dashboard_UpdateAdcValues(const uint32_t *values, uint8_t count);
+
 #endif /* INC_DASHBOARD_H_ */
