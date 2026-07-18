@@ -31,6 +31,7 @@
 #include "string.h"
 #include "stdio.h"
 #include "eric_lora.h"
+#include "terminal_console.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -72,10 +73,8 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void InitializeTimer(void);
 void DisplayWelcome(UART_HandleTypeDef * huart);
-void DisplayOptions(UART_HandleTypeDef * huart);
 void DisplayTable(UART_HandleTypeDef * huart);
 void DisplayString(UART_HandleTypeDef * huart);
-void TerminalCommands(UART_HandleTypeDef * huart);
 void DisplayHeartbeat(UART_HandleTypeDef * huart);
 void DisplayTemperature(UART_HandleTypeDef * huart);
 void DisplayHumidity(UART_HandleTypeDef * huart);
@@ -91,7 +90,6 @@ HAL_StatusTypeDef RTC_SetDateTime(uint8_t year, uint8_t month, uint8_t day, uint
 void RefreshDashboard(UART_HandleTypeDef *huart);
 void DisplayDate(UART_HandleTypeDef *huart);
 void DisplayTime(UART_HandleTypeDef *huart);
-void DisplayCommandScreen(UART_HandleTypeDef *huart);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -432,44 +430,6 @@ void DisplayWelcome(UART_HandleTypeDef * huart) {
 //	DisplayOptions(huart);
 	DisplayPrompt(huart);
 }
-void DisplayCommandScreen(UART_HandleTypeDef *huart)
-{
-    ClrTerm(huart);
-    CursorHome(huart);
-
-    const char *text =
-        "========================================\r\n"
-        "         COMMAND CONSOLE\r\n"
-        "========================================\r\n"
-        "\r\n"
-        "Type 'help' for commands.\r\n"
-        "Press ENTER on a blank line to return.\r\n"
-        "\r\n"
-        "Command> ";
-
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)text,
-                      strlen(text),
-                      HAL_MAX_DELAY);
-}
-void DisplayOptions(UART_HandleTypeDef *huart)
-{
-    char options_str[256];
-
-    sprintf(options_str,
-            "Available commands:\r\n"
-            "help\r\n"
-            "refresh\r\n"
-            "temp\r\n"
-            "humid\r\n"
-            "datetime\r\n"
-            "setdt yyyy-mm-dd hh:mm:ss\r\n");
-
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)options_str,
-                      strlen(options_str),
-                      HAL_MAX_DELAY);
-}
 void DisplayTable(UART_HandleTypeDef * huart) {
 	int i;
 
@@ -499,233 +459,6 @@ void DisplayTable(UART_HandleTypeDef * huart) {
 	DrwBlnkRow(huart);			// Line 20
 
 	DrwTblBase(huart);			// Line 21
-}
-void TerminalCommands(UART_HandleTypeDef *huart)
-{
-    char buffer[80];
-
-    if (!cmd_ready)
-    {
-        return;
-    }
-
-    cmd_ready = 0;
-
-    sprintf(buffer,
-            "Command=[%s]\r\n",
-            cmd_buffer);
-
-    HAL_UART_Transmit(debug_uart,
-                      (uint8_t *)buffer,
-                      strlen(buffer),
-                      HAL_MAX_DELAY);
-
-    HAL_UART_Transmit(debug_uart,
-                      (uint8_t *)"Executing command...\r\n",
-                      22,
-                      HAL_MAX_DELAY);
-
-
-    if (strcmp(cmd_buffer, "help") == 0)
-    {
-        DisplayOptions(debug_uart);
-    }
-
-    else if (strcmp(cmd_buffer, "refresh") == 0)
-    {
-        DisplayWelcome(debug_uart);
-
-        RefreshDashboard(debug_uart);
-    }
-
-    else if (strcmp(cmd_buffer, "temp") == 0)
-    {
-        StreamTemperature(debug_uart);
-    }
-
-    else if (strcmp(cmd_buffer, "humid") == 0)
-    {
-        StreamHumidity(debug_uart);
-    }
-    else if (strcmp(cmd_buffer, "datetime") == 0)
-    {
-        RTC_PrintDateTime(debug_uart);
-    }
-    else if (strncmp(cmd_buffer, "setdt ", 6) == 0)
-    {
-        uint8_t year;
-        uint8_t month;
-        uint8_t day;
-        uint8_t hour;
-        uint8_t minute;
-        uint8_t second;
-
-        uint16_t fullYear;
-        HAL_StatusTypeDef status;
-
-        bool format_ok = true;
-        size_t length = strlen(cmd_buffer);
-
-        /*
-         * Expected format:
-         *
-         * setdt 2026-07-17 18:33:00
-         *
-         * Character positions:
-         *
-         *  0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-         *  s e t d t   2 0 2 6  -  0  7  -  1  7     1  8  :  3  3  :  0  0
-         */
-
-        if (length != 25U)
-        {
-            format_ok = false;
-        }
-
-        if (format_ok)
-        {
-            if ((cmd_buffer[10] != '-') ||
-                (cmd_buffer[13] != '-') ||
-                (cmd_buffer[16] != ' ') ||
-                (cmd_buffer[19] != ':') ||
-                (cmd_buffer[22] != ':'))
-            {
-                format_ok = false;
-            }
-        }
-
-        /*
-         * Check that every non-separator character is a decimal digit.
-         */
-        if (format_ok)
-        {
-            for (uint8_t i = 6U; i < 25U; i++)
-            {
-                if ((i == 10U) ||
-                    (i == 13U) ||
-                    (i == 16U) ||
-                    (i == 19U) ||
-                    (i == 22U))
-                {
-                    continue;
-                }
-
-                if ((cmd_buffer[i] < '0') ||
-                    (cmd_buffer[i] > '9'))
-                {
-                    format_ok = false;
-                    break;
-                }
-            }
-        }
-
-        if (!format_ok)
-        {
-            const char message[] =
-                "Bad format. Use:\r\n"
-                "setdt yyyy-mm-dd hh:mm:ss\r\n";
-
-            HAL_UART_Transmit(huart,
-                              (uint8_t *)message,
-                              strlen(message),
-                              HAL_MAX_DELAY);
-        }
-        else
-        {
-            /*
-             * Parse the fixed-position fields.
-             */
-            fullYear =
-                (cmd_buffer[6] - '0') * 1000U +
-                (cmd_buffer[7] - '0') * 100U +
-                (cmd_buffer[8] - '0') * 10U +
-                (cmd_buffer[9] - '0');
-
-            year = (uint8_t)(fullYear - 2000U);
-
-            month =
-                (uint8_t)(((cmd_buffer[11] - '0') * 10U) +
-                           (cmd_buffer[12] - '0'));
-
-            day =
-                (uint8_t)(((cmd_buffer[14] - '0') * 10U) +
-                           (cmd_buffer[15] - '0'));
-
-            hour =
-                (uint8_t)(((cmd_buffer[17] - '0') * 10U) +
-                           (cmd_buffer[18] - '0'));
-
-            minute =
-                (uint8_t)(((cmd_buffer[20] - '0') * 10U) +
-                           (cmd_buffer[21] - '0'));
-
-            second =
-                (uint8_t)(((cmd_buffer[23] - '0') * 10U) +
-                           (cmd_buffer[24] - '0'));
-
-            /*
-             * This is where the value-range validation goes:
-             * after parsing, before RTC_SetDateTime().
-             */
-            if ((fullYear < 2000U) ||
-                (fullYear > 2099U) ||
-                (month < 1U) ||
-                (month > 12U) ||
-                (day < 1U) ||
-                (day > 31U) ||
-                (hour > 23U) ||
-                (minute > 59U) ||
-                (second > 59U))
-            {
-                const char message[] =
-                    "Date or time value out of range\r\n";
-
-                HAL_UART_Transmit(huart,
-                                  (uint8_t *)message,
-                                  strlen(message),
-                                  HAL_MAX_DELAY);
-            }
-            else
-            {
-                /*
-                 * Only call the RTC function after all validation passes.
-                 */
-                status = RTC_SetDateTime(year,
-                                         month,
-                                         day,
-                                         hour,
-                                         minute,
-                                         second);
-
-                snprintf(buffer,
-                         sizeof(buffer),
-                         "RTC status=%d\r\n",
-                         status);
-
-                HAL_UART_Transmit(huart,
-                                  (uint8_t *)buffer,
-                                  strlen(buffer),
-                                  HAL_MAX_DELAY);
-            }
-        }
-    }
-    else
-    {
-//        printf("Unknown command\r\n");
-    	HAL_UART_Transmit(debug_uart,
-    	                  (uint8_t *)"Unknown command\r\n",
-    	                  17,
-    	                  HAL_MAX_DELAY);
-    }
-    if (command_mode)
-    {
-        const char prompt[] = "\r\nCommand> ";
-
-        HAL_UART_Transmit(huart,
-                          (uint8_t *)prompt,
-                          strlen(prompt),
-                          HAL_MAX_DELAY);
-    }
 }
 void DisplayHeartbeat(UART_HandleTypeDef * huart) {
 	char name_str[128] = "Heartbeat:\0";
