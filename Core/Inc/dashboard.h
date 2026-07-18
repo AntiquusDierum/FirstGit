@@ -1,0 +1,33 @@
+/*
+ * dashboard.h
+ *
+ *  Created on: 18 Jul 2026
+ *      Author: alan
+ */
+
+#ifndef INC_DASHBOARD_H_
+#define INC_DASHBOARD_H_
+
+#include "main.h"
+
+void Dashboard_Show(UART_HandleTypeDef *huart);
+void Dashboard_Refresh(UART_HandleTypeDef *huart);
+
+void Dashboard_DisplayDate(UART_HandleTypeDef *huart);
+void Dashboard_DisplayTime(UART_HandleTypeDef *huart);
+
+void Dashboard_DisplayTemperature(UART_HandleTypeDef *huart);
+void Dashboard_DisplayHumidity(UART_HandleTypeDef *huart);
+
+void Dashboard_Display9V(UART_HandleTypeDef *huart);
+void Dashboard_Display5V(UART_HandleTypeDef *huart);
+void Dashboard_Display3V3(UART_HandleTypeDef *huart);
+
+void Dashboard_DisplayLoRaCurrent(UART_HandleTypeDef *huart);
+void Dashboard_DisplayLoRaEnable(UART_HandleTypeDef *huart);
+void Dashboard_DisplayHeartbeat(UART_HandleTypeDef *huart);
+
+void Dashboard_StreamTemperature(UART_HandleTypeDef *huart);
+void Dashboard_StreamHumidity(UART_HandleTypeDef *huart);
+
+#endif /* INC_DASHBOARD_H_ */

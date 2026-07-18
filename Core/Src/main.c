@@ -32,6 +32,7 @@
 #include "stdio.h"
 #include "eric_lora.h"
 #include "terminal_console.h"
+#include "dashboard.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -65,24 +66,9 @@ uint8_t userLoopC = 0;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void InitializeTimer(void);
-void DisplayWelcome(UART_HandleTypeDef * huart);
-void DisplayTable(UART_HandleTypeDef * huart);
 void DisplayString(UART_HandleTypeDef * huart);
-void DisplayHeartbeat(UART_HandleTypeDef * huart);
-void DisplayTemperature(UART_HandleTypeDef * huart);
-void DisplayHumidity(UART_HandleTypeDef * huart);
-void Display9VV(UART_HandleTypeDef * huart);
-void Display5VV(UART_HandleTypeDef * huart);
-void Display3V3V(UART_HandleTypeDef * huart);
-void DisplayLoRaI(UART_HandleTypeDef * huart);
-void DisplayLoRaEnable(UART_HandleTypeDef * huart);
-void StreamTemperature(UART_HandleTypeDef * huart);
-void StreamHumidity(UART_HandleTypeDef * huart);
 void RTC_PrintDateTime(UART_HandleTypeDef *huart);
 HAL_StatusTypeDef RTC_SetDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
-void RefreshDashboard(UART_HandleTypeDef *huart);
-void DisplayDate(UART_HandleTypeDef *huart);
-void DisplayTime(UART_HandleTypeDef *huart);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -153,13 +139,9 @@ int main(void)
   MX_UART5_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-//  HAL_I2C_DeInit(&hi2c1);
-//  HAL_Delay(10);
-//  MX_I2C1_Init();
-
   HAL_TIM_Base_Start(&htim6);
   HAL_UART_Receive_IT(debug_uart,debug_rx,1);
-  DisplayWelcome(debug_uart);
+  Dashboard_Show(debug_uart);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
   SHT2x_Init(&hi2c1);
@@ -168,10 +150,7 @@ int main(void)
   HAL_Delay(20);
 
   ERIC_Init(eric_uart);
-//  float t = SHT2x_GetTemperature(1);
-//  float h = SHT2x_GetRelativeHumidity(1);
   HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1);
-//  SHT2x_SetResolution(RES_14_12);
   HAL_ADC_Start_DMA(&hadc, adcBuffer, 4);
 
   /* USER CODE END 2 */
@@ -194,8 +173,8 @@ int main(void)
 
 	  if (TerminalConsole_RedrawDashboard())
 	  {
-	      DisplayWelcome(debug_uart);
-	      RefreshDashboard(debug_uart);
+	      Dashboard_Show(debug_uart);
+	      Dashboard_Refresh(debug_uart);
 
 	      /*
 	       * Prevent the periodic code from immediately treating the
@@ -236,7 +215,7 @@ int main(void)
 	      lastSecond = sTime.Seconds;
 	      if (!TerminalConsole_IsActive())
 	      {
-	    	  DisplayTime(debug_uart);
+	    	  Dashboard_DisplayTime(debug_uart);
 	      }
 	  }
 
@@ -246,11 +225,9 @@ int main(void)
 
 	      if (!TerminalConsole_IsActive())
 	      {
-	    	  DisplayDate(debug_uart);
-
-	    	  DisplayTemperature(debug_uart);
-
-	    	  DisplayHumidity(debug_uart);
+	    	  Dashboard_DisplayDate(debug_uart);
+	    	  Dashboard_DisplayTemperature(debug_uart);
+	    	  Dashboard_DisplayHumidity(debug_uart);
 	      }
 	  }
 
@@ -262,7 +239,7 @@ int main(void)
 
 	      if (!TerminalConsole_IsActive())
 	      {
-	    	  RefreshDashboard(debug_uart);
+	    	  Dashboard_Refresh(debug_uart);
 	      }
 	  }
 
@@ -277,11 +254,11 @@ int main(void)
 		  		  break;
 
 		  	  case 100:
-//		  		  DisplayLoRaEnable(debug_uart);
+//		  		  Dashboard_DisplayLoRaEnable(debug_uart);
 		  		  break;
 
 		  	  case 150:
-//	  			  StreamTemperature(debug_uart);
+//	  			  Dashboard_StreamTemperature(debug_uart);
 		  		  break;
 
 		  	  case 250:
@@ -289,15 +266,15 @@ int main(void)
 		  		  break;
 
 		  	  case 400:
-//	  			  StreamHumidity(debug_uart);
+//	  			  Dashboard_StreamHumidity(debug_uart);
 		  		  if (userLoopA == ADC_9V) {
-//		  			  Display9VV(debug_uart);
+//		  			  Dashboard_Display9V(debug_uart);
 		  		  } else if (userLoopA == ADC_5V) {
-//		  			  Display5VV(debug_uart);
+//		  			  Dashboard_Display5V(debug_uart);
 		  		  } else if (userLoopA == ADC_3V3V) {
-//		  			  Display3V3V(debug_uart);
+//		  			  Dashboard_Display3V3(debug_uart);
 		  		  } else {
-//		  			  DisplayLoRaI(debug_uart);
+//		  			  Dashboard_DisplayLoRaCurrent(debug_uart);
 		  		  }
 		  		  break;
 
@@ -359,220 +336,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void DisplayWelcome(UART_HandleTypeDef * huart) {
-	DisplayTable(huart);
-//	TerminalConsole_ShowHelp(huart);
-	DisplayPrompt(huart);
-}
-void DisplayTable(UART_HandleTypeDef * huart) {
-	int i;
-
-	ClrTerm(huart);
-	CursorHome(huart);
-
-	DrwTblTop(huart);			// Line 1
-	DrwTtl(huart);				// Line 2
-	DrwTblBarDbl(huart);		// Line 3
-
-	for (i=0;i<15;i++) {
-		DrwBlnkRow(huart);		// Lines 4-
-	}
-
-//	DrwTblBarSngl(huart);		// Line 8
-
-//	DrwBlnkRow(huart);			// Line 9 (Left/Right Titles)
-
-//	DrwTblBarSngl(huart);		// Line 10
-
-//	for (i=0;i<8;i++) {
-//		DrwBlnkRow(huart);		// Lines 11-18
-//	}
-
-	DrwTblBarSngl(huart);		// Line 19
-
-	DrwBlnkRow(huart);			// Line 20
-
-	DrwTblBase(huart);			// Line 21
-}
-void DisplayHeartbeat(UART_HandleTypeDef * huart) {
-	char name_str[128] = "Heartbeat:\0";
-	char value_str[128] = "\0";
-
-	if (HAL_GPIO_ReadPin(GPIOA, LED_Heartbeat_Pin)) {
-		sprintf(value_str,"Low(0)");
-	}
-	else {
-		sprintf(value_str,"High(1)");
-	}
-
-	DrwCellAt(RIGHT_COL,11,name_str,value_str,huart);
-}
-void DisplayTemperature(UART_HandleTypeDef * huart) {
-	char name_str[128] = "Temperature:\0";
-	char value_str[128] = "\0";
-	float sht_celsius = 0;
-
-	sht_celsius = SHT2x_GetTemperature(1);
-
-	sprintf(value_str,"%.1f°C",sht_celsius);
-	userLoopC = LOOP_HUMD;
-
-	DrwCellAt(LEFT_COL,16,name_str,value_str,huart);
-}
-void DisplayHumidity(UART_HandleTypeDef * huart) {
-	char name_str[128] = "Relative Humidity:\0";
-	char value_str[128] = "\0";
-	float sht_humid = 0;
-
-	sht_humid = SHT2x_GetRelativeHumidity(1);
-
-	sprintf(value_str,"%.1f%%",sht_humid);
-	userLoopC = LOOP_TEMP;
-
-	DrwCellAt(RIGHT_COL,16,name_str,value_str,huart);
-}
-void Display9VV(UART_HandleTypeDef * huart) {
-	char name_str[128] = "V_+9V_Vin:\0";
-	char value_str[128] = "\0";
-	float vin9v = 0;
-
-	vin9v = ( (float)adcValues[ADC_9V] / 4095 ) * 3.3 * 3;
-	userLoopA = ADC_5V;
-
-	sprintf(value_str,"%.3fV",vin9v);
-
-	DrwCellAt(LEFT_COL,4,name_str,value_str,huart);
-}
-void Display5VV(UART_HandleTypeDef * huart) {
-	char name_str[128] = "V_+5V Rail:\0";
-	char value_str[128] = "\0";
-	float nucleo5v = 0;
-
-	nucleo5v = ( ( (float)adcValues[ADC_5V] / 4095 ) * 3.3 * 1.667 );  // 1.667 = 10K / (10K + 15K)
-	userLoopA = ADC_3V3V;
-
-	sprintf(value_str,"%.3fV",nucleo5v);
-
-	DrwCellAt(LEFT_COL,5,name_str,value_str,huart);
-}
-void Display3V3V(UART_HandleTypeDef * huart) {
-	char name_str[128] = "V_+3V3 Rail:\0";
-	char value_str[128] = "\0";
-	float nucleo3v3v = 0;
-
-	nucleo3v3v = (float)adcValues[ADC_3V3V] / 4095 * 3.3 * 1.067;
-//	nucleo3v3v = (float)adcValues[ADC_MAIN3V] * ADC_SCALE3V;
-	userLoopA = ADC_ILORA;
-
-	sprintf(value_str,"%.2fV",nucleo3v3v);
-
-	DrwCellAt(LEFT_COL,6,name_str,value_str,huart);
-}
-void DisplayLoRaI(UART_HandleTypeDef * huart) {
-	char name_str[128] = "LoRa 5V Rail Current:\0";
-	char value_str[128] = "\0";
-	float lorai = 0;
-
-	lorai = ( ( (float)adcValues[ADC_ILORA] / 4095 ) * 2660 );  // 2660 = 1000 * 3.3 / ( 0.1 * 0.0002 * 62000 ) ie Rs * 200µ * Rl
-	userLoopA = ADC_9V;
-
-	sprintf(value_str,"%.2fmA",lorai);
-
-	DrwCellAt(LEFT_COL,7,name_str,value_str,huart);
-}
-void DisplayLoRaEnable(UART_HandleTypeDef * huart) {
-	char name_str[128] = "LoRa Enable:\0";
-	char value_str[128] = "\0";
-
-	if (HAL_GPIO_ReadPin(GPIOB, en_LoRa_Pin)) {
-		sprintf(value_str,"High(1)");
-	}
-	else {
-		sprintf(value_str,"Low(0)");
-	}
-
-	DrwCellAt(RIGHT_COL,4,name_str,value_str,huart);
-}
-void DisplayDate(UART_HandleTypeDef *huart)
-{
-    RTC_TimeTypeDef sTime;
-    RTC_DateTypeDef sDate;
-
-    char name_str[128] = "Date:\0";
-    char value_str[128] = "\0";
-
-    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-
-    sprintf(value_str,
-            "20%02u-%02u-%02u",
-            sDate.Year,
-            sDate.Month,
-            sDate.Date);
-
-    DrwCellAt(RIGHT_COL, 5, name_str, value_str, huart);
-}
-void DisplayTime(UART_HandleTypeDef *huart)
-{
-    RTC_TimeTypeDef sTime;
-    RTC_DateTypeDef sDate;
-
-    char name_str[128] = "Time:\0";
-    char value_str[128] = "\0";
-
-    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-
-    /*
-     * Important:
-     * You must always read the date immediately after the time.
-     */
-
-    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-
-    sprintf(value_str,
-            "%02u:%02u:%02u",
-            sTime.Hours,
-            sTime.Minutes,
-            sTime.Seconds);
-
-    DrwCellAt(RIGHT_COL, 6, name_str, value_str, huart);
-}
-void StreamTemperature(UART_HandleTypeDef * huart) {
-	char name_str[128] = "Temperature:\0";
-	char value_str[128] = "\0";
-	float sht_celsius = 0;
-	uint8_t cell_str[128];
-	int i;
-
-	sht_celsius = SHT2x_GetTemperature(1);
-
-	sprintf(value_str,"%.1f°C\n\r",sht_celsius);
-
-	/* construct cell string */
-	strcpy((char*)cell_str,name_str);
-	for (i=1;i<4;i=i+2) strcat((char*)cell_str,".");
-	strcat((char*)cell_str,value_str);
-
-	HAL_UART_Transmit(huart,cell_str,strlen((char*)cell_str),HAL_MAX_DELAY);
-}
-void StreamHumidity(UART_HandleTypeDef * huart) {
-	char name_str[128] = "Relative Humidity:\0";
-	char value_str[128] = "\0";
-	float sht_humid = 0;
-	uint8_t cell_str[128];
-	int i;
-
-	sht_humid = SHT2x_GetRelativeHumidity(1);
-
-	sprintf(value_str,"%.1f%%\n\r",sht_humid);
-
-	/* construct cell string */
-	strcpy((char*)cell_str,name_str);
-	for (i=1;i<4;i=i+2) strcat((char*)cell_str,".");
-	strcat((char*)cell_str,value_str);
-
-	HAL_UART_Transmit(huart,cell_str,strlen((char*)cell_str),HAL_MAX_DELAY);
-}
 void RTC_PrintDateTime(UART_HandleTypeDef *huart)
 {
     RTC_TimeTypeDef sTime;
@@ -628,21 +391,6 @@ HAL_StatusTypeDef RTC_SetDateTime(uint8_t year, uint8_t month, uint8_t day, uint
     }
 
     return HAL_OK;
-}
-void RefreshDashboard(UART_HandleTypeDef *huart)
-{
-    Display9VV(huart);
-    Display5VV(huart);
-    Display3V3V(huart);
-    DisplayLoRaI(huart);
-
-    DisplayLoRaEnable(huart);
-
-    DisplayDate(huart);
-    DisplayTime(huart);
-
-    DisplayTemperature(huart);
-    DisplayHumidity(huart);
 }
 /* USER CODE END 4 */
 

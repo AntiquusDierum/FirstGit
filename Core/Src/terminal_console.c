@@ -6,6 +6,7 @@
  */
 
 #include "terminal_console.h"
+#include "dashboard.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -32,8 +33,6 @@ static volatile uint8_t redraw_dashboard = 0;
  */
 extern void DisplayWelcome(UART_HandleTypeDef *huart);
 extern void RefreshDashboard(UART_HandleTypeDef *huart);
-extern void StreamTemperature(UART_HandleTypeDef *huart);
-extern void StreamHumidity(UART_HandleTypeDef *huart);
 extern void RTC_PrintDateTime(UART_HandleTypeDef *huart);
 
 extern HAL_StatusTypeDef RTC_SetDateTime(uint8_t year,
@@ -117,16 +116,16 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
     }
     else if (strcmp(cmd_buffer, "refresh") == 0)
     {
-        DisplayWelcome(huart);
-        RefreshDashboard(huart);
+    	Dashboard_Show(huart);
+    	Dashboard_Refresh(huart);
     }
     else if (strcmp(cmd_buffer, "temp") == 0)
     {
-        StreamTemperature(huart);
+    	Dashboard_StreamTemperature(huart);
     }
     else if (strcmp(cmd_buffer, "humid") == 0)
     {
-        StreamHumidity(huart);
+    	Dashboard_StreamHumidity(huart);
     }
     else if (strcmp(cmd_buffer, "datetime") == 0)
     {
