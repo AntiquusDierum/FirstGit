@@ -21,7 +21,7 @@
 #include "rtc.h"
 
 /* USER CODE BEGIN 0 */
-
+#define RTC_INITIALISED_MARKER  0x32F2U
 /* USER CODE END 0 */
 
 RTC_HandleTypeDef hrtc;
@@ -57,6 +57,19 @@ void MX_RTC_Init(void)
 
   /* USER CODE BEGIN Check_RTC_BKUP */
 
+  __HAL_RCC_PWR_CLK_ENABLE();
+  HAL_PWR_EnableBkUpAccess();
+
+  if (HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR0)
+          == RTC_INITIALISED_MARKER)
+  {
+      /*
+       * The RTC has already been set.
+       * Do not overwrite the retained time and date.
+       */
+      return;
+  }
+
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date
@@ -81,8 +94,11 @@ void MX_RTC_Init(void)
   }
   /* USER CODE BEGIN RTC_Init 2 */
 
-  /* USER CODE END RTC_Init 2 */
+  HAL_RTCEx_BKUPWrite(&hrtc,
+                      RTC_BKP_DR0,
+                      RTC_INITIALISED_MARKER);
 
+  /* USER CODE END RTC_Init 2 */
 }
 
 void HAL_RTC_MspInit(RTC_HandleTypeDef* rtcHandle)

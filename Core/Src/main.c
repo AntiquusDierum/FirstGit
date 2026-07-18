@@ -64,8 +64,6 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void InitializeTimer(void);
 void DisplayString(UART_HandleTypeDef * huart);
-void RTC_PrintDateTime(UART_HandleTypeDef *huart);
-HAL_StatusTypeDef RTC_SetDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -324,62 +322,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void RTC_PrintDateTime(UART_HandleTypeDef *huart)
-{
-    RTC_TimeTypeDef sTime;
-    RTC_DateTypeDef sDate;
 
-    char buffer[64];
-
-    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-
-    /*
-     * IMPORTANT:
-     * Read the date immediately after the time.
-     * The HAL requires this to unlock the shadow registers.
-     */
-    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-
-    sprintf(buffer,
-            "%02u-%02u-20%02u %02u:%02u:%02u\r\n",
-            sDate.Date,
-            sDate.Month,
-            sDate.Year,
-            sTime.Hours,
-            sTime.Minutes,
-            sTime.Seconds);
-
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)buffer,
-                      strlen(buffer),
-                      HAL_MAX_DELAY);
-}
-HAL_StatusTypeDef RTC_SetDateTime(uint8_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second)
-{
-    RTC_TimeTypeDef sTime = {0};
-    RTC_DateTypeDef sDate = {0};
-
-    sTime.Hours = hour;
-    sTime.Minutes = minute;
-    sTime.Seconds = second;
-
-    sDate.Year = year;
-    sDate.Month = month;
-    sDate.Date = day;
-    sDate.WeekDay = RTC_WEEKDAY_MONDAY;
-
-    if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
-    {
-        return HAL_ERROR;
-    }
-
-    if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
-    {
-        return HAL_ERROR;
-    }
-
-    return HAL_OK;
-}
 /* USER CODE END 4 */
 
 /**

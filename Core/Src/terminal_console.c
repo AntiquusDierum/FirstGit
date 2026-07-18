@@ -7,6 +7,7 @@
 
 #include "terminal_console.h"
 #include "dashboard.h"
+#include "rtc_service.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -25,22 +26,6 @@ static volatile uint8_t cmd_ready = 0;
 static volatile uint8_t command_mode = 0;
 static volatile uint8_t redraw_command_screen = 0;
 static volatile uint8_t redraw_dashboard = 0;
-
-/*
- * These application functions currently remain in main.c.
- *
- * Later they will move into dashboard, sensor and RTC modules.
- */
-extern void DisplayWelcome(UART_HandleTypeDef *huart);
-extern void RefreshDashboard(UART_HandleTypeDef *huart);
-extern void RTC_PrintDateTime(UART_HandleTypeDef *huart);
-
-extern HAL_StatusTypeDef RTC_SetDateTime(uint8_t year,
-                                         uint8_t month,
-                                         uint8_t day,
-                                         uint8_t hour,
-                                         uint8_t minute,
-                                         uint8_t second);
 
 void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
 {
@@ -129,7 +114,7 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
     }
     else if (strcmp(cmd_buffer, "datetime") == 0)
     {
-        RTC_PrintDateTime(huart);
+        RTCService_PrintDateTime(huart);
     }
     else if (strncmp(cmd_buffer, "setdt ", 6U) == 0)
     {
@@ -259,12 +244,12 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
             }
             else
             {
-                status = RTC_SetDateTime(year,
-                                         month,
-                                         day,
-                                         hour,
-                                         minute,
-                                         second);
+            	status = RTCService_SetDateTime(year,
+            	                                month,
+            	                                day,
+            	                                hour,
+            	                                minute,
+            	                                second);
 
                 snprintf(buffer,
                          sizeof(buffer),
