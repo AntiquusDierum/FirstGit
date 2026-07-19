@@ -10,7 +10,6 @@
 
 #include "main.h"
 #include <stdbool.h>
-#include <string.h>
 
 typedef enum
 {
@@ -36,6 +35,8 @@ ERIC_Status_t ERIC_Send(const uint8_t *data,
                         uint16_t length);
 
 ERIC_Status_t ERIC_SendString(const char *text);
+
+ERIC_Status_t ERIC_QueryUartBaudRate(void);
 
 bool ERIC_ReadByte(uint8_t *byte);
 

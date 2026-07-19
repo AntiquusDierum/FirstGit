@@ -6,8 +6,10 @@
  */
 #include "eric_lora.h"
 #include "ringbuffer.h"
+#include <string.h>
 
 #define ERIC_RX_BUFFER_SIZE    256U
+#define ERIC_UART_TIMEOUT_MS  1000U
 
 static UART_HandleTypeDef *eric_handle;
 
@@ -15,8 +17,15 @@ static RingBuffer_t rx_fifo;
 
 static uint8_t rx_storage[ERIC_RX_BUFFER_SIZE];
 
+static ERIC_Status_t ERIC_SendCommand(const char *command);
+
 ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart)
 {
+    if (huart == NULL)
+    {
+        return ERIC_UART_ERROR;
+    }
+
     eric_handle = huart;
 
     RingBuffer_Init(&rx_fifo,
@@ -44,10 +53,20 @@ uint16_t ERIC_Available(void)
 ERIC_Status_t ERIC_Send(const uint8_t *data,
                         uint16_t length)
 {
+    if (eric_handle == NULL)
+    {
+        return ERIC_UART_ERROR;
+    }
+
+    if ((data == NULL) || (length == 0U))
+    {
+        return ERIC_UART_ERROR;
+    }
+
     if (HAL_UART_Transmit(eric_handle,
                           (uint8_t *)data,
                           length,
-                          1000) != HAL_OK)
+                          ERIC_UART_TIMEOUT_MS) != HAL_OK)
     {
         return ERIC_UART_ERROR;
     }
@@ -57,8 +76,28 @@ ERIC_Status_t ERIC_Send(const uint8_t *data,
 
 ERIC_Status_t ERIC_SendString(const char *text)
 {
+    if (text == NULL)
+    {
+        return ERIC_UART_ERROR;
+    }
+
     return ERIC_Send((const uint8_t *)text,
-                     strlen(text));
+                     (uint16_t)strlen(text));
+}
+
+static ERIC_Status_t ERIC_SendCommand(const char *command)
+{
+    if (command == NULL)
+    {
+        return ERIC_UART_ERROR;
+    }
+
+    return ERIC_SendString(command);
+}
+
+ERIC_Status_t ERIC_QueryUartBaudRate(void)
+{
+    return ERIC_SendCommand("ER_CMD#U?");
 }
 
 void ERIC_Task(void)
@@ -68,18 +107,5 @@ void ERIC_Task(void)
     if ((HAL_GetTick() - lastTick) > 2000)
     {
         lastTick = HAL_GetTick();
-
-        HAL_GPIO_TogglePin(GPIOA, LED_Status_Pin);
-
-        ERIC_SendString("<<< STM32 TEST >>>\r\n");
     }
 }
-/*
-static void ERIC_Debug(const char *msg)
-{
-    HAL_UART_Transmit(eric_handle,
-                      (uint8_t *)msg,
-                      strlen(msg),
-                      1000);
-}
-*/
