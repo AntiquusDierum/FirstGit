@@ -267,7 +267,10 @@ void Dashboard_StreamTemperature(UART_HandleTypeDef * huart) {
 	uint8_t cell_str[128];
 	int i;
 
-	SHT25_ReadTemperature(&sht_celsius);
+	if (SHT25_ReadTemperature(&sht_celsius) != HAL_OK)
+	{
+	    return;
+	}
 
 	sprintf(value_str,"%.1f°C\n\r",sht_celsius);
 
@@ -285,7 +288,10 @@ void Dashboard_StreamHumidity(UART_HandleTypeDef * huart) {
 	uint8_t cell_str[128];
 	int i;
 
-	SHT25_ReadHumidity(&sht_humid);
+	if (SHT25_ReadHumidity(&sht_humid) != HAL_OK)
+	{
+		return;
+	}
 
 	sprintf(value_str,"%.1f%%\n\r",sht_humid);
 

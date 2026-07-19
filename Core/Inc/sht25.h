@@ -24,9 +24,8 @@
 /*
  * Measurement commands
  */
-#define SHT25_CMD_TRIGGER_TEMP_NO_HOLD     0xF3U
-#define SHT25_CMD_TRIGGER_HUMID_NO_HOLD    0xF5U
-#define SHT25_CMD_TRIGGER_HUMIDITY_NO_HOLD    0xF5U
+#define SHT25_CMD_TRIGGER_TEMP_NO_HOLD     		0xF3U
+#define SHT25_CMD_TRIGGER_HUMIDITY_NO_HOLD  	0xF5U
 /*
  * Public driver functions.
  */

@@ -28,6 +28,9 @@ static HAL_StatusTypeDef SHT25_WriteCommand(uint8_t command);
 static HAL_StatusTypeDef SHT25_Read(uint8_t *data,
                                     uint16_t length);
 
+static uint8_t SHT25_CalculateCrc(const uint8_t *data,
+                                  uint16_t length);
+
 HAL_StatusTypeDef SHT25_Init(I2C_HandleTypeDef *hi2c)
 {
     HAL_StatusTypeDef status;
@@ -129,6 +132,38 @@ static HAL_StatusTypeDef SHT25_Read(uint8_t *data,
                                   SHT25_I2C_TIMEOUT_MS);
 }
 
+static uint8_t SHT25_CalculateCrc(const uint8_t *data,
+                                  uint16_t length)
+{
+    uint8_t crc = 0x00U;
+    uint16_t byteIndex;
+    uint8_t bitIndex;
+
+    if (data == NULL)
+    {
+        return 0xFFU;
+    }
+
+    for (byteIndex = 0U; byteIndex < length; byteIndex++)
+    {
+        crc ^= data[byteIndex];
+
+        for (bitIndex = 0U; bitIndex < 8U; bitIndex++)
+        {
+            if ((crc & 0x80U) != 0U)
+            {
+                crc = (uint8_t)((crc << 1U) ^ 0x31U);
+            }
+            else
+            {
+                crc <<= 1U;
+            }
+        }
+    }
+
+    return crc;
+}
+
 HAL_StatusTypeDef SHT25_ReadTemperatureRaw(uint16_t *rawTemperature)
 {
     uint8_t data[3];
@@ -148,7 +183,12 @@ HAL_StatusTypeDef SHT25_ReadTemperatureRaw(uint16_t *rawTemperature)
      */
     HAL_Delay(100U);
 
-    if (SHT25_Read(data, 3) != HAL_OK)
+    if (SHT25_Read(data, sizeof(data)) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    if (SHT25_CalculateCrc(data, 2U) != data[2])
     {
         return HAL_ERROR;
     }
@@ -206,6 +246,11 @@ HAL_StatusTypeDef SHT25_ReadHumidityRaw(uint16_t *rawHumidity)
     HAL_Delay(100U);
 
     if (SHT25_Read(data, sizeof(data)) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    if (SHT25_CalculateCrc(data, 2U) != data[2])
     {
         return HAL_ERROR;
     }
