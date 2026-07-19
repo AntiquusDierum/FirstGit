@@ -13,7 +13,9 @@
 
 #include <stddef.h>
 
-#define SHT25_I2C_TIMEOUT_MS    100U
+#define SHT25_I2C_TIMEOUT_MS    	100U
+#define SHT25_TEMP_TIMEOUT_MS       100U
+#define SHT25_HUMIDITY_TIMEOUT_MS    50U
 
 /*
  * Pointer to the I2C peripheral used by the sensor.
@@ -25,11 +27,12 @@ static I2C_HandleTypeDef *sht25_i2c = NULL;
 
 static HAL_StatusTypeDef SHT25_WriteCommand(uint8_t command);
 
-static HAL_StatusTypeDef SHT25_Read(uint8_t *data,
-                                    uint16_t length);
-
 static uint8_t SHT25_CalculateCrc(const uint8_t *data,
                                   uint16_t length);
+
+static HAL_StatusTypeDef SHT25_ReadMeasurement(uint8_t *data,
+                                               uint16_t length,
+                                               uint32_t timeoutMs);
 
 HAL_StatusTypeDef SHT25_Init(I2C_HandleTypeDef *hi2c)
 {
@@ -69,7 +72,7 @@ HAL_StatusTypeDef SHT25_IsConnected(void)
     return HAL_I2C_IsDeviceReady(sht25_i2c,
                                  SHT25_I2C_ADDRESS,
                                  3U,
-                                 100U);
+								 SHT25_I2C_TIMEOUT_MS);
 }
 HAL_StatusTypeDef SHT25_Reset(void)
 {
@@ -85,7 +88,7 @@ HAL_StatusTypeDef SHT25_Reset(void)
                                      SHT25_I2C_ADDRESS,
                                      &command,
                                      1U,
-                                     100U);
+									 SHT25_I2C_TIMEOUT_MS);
 
     if (status != HAL_OK)
     {
@@ -115,9 +118,13 @@ static HAL_StatusTypeDef SHT25_WriteCommand(uint8_t command)
                                    SHT25_I2C_TIMEOUT_MS);
 }
 
-static HAL_StatusTypeDef SHT25_Read(uint8_t *data,
-                                    uint16_t length)
+static HAL_StatusTypeDef SHT25_ReadMeasurement(uint8_t *data,
+                                               uint16_t length,
+                                               uint32_t timeoutMs)
 {
+    uint32_t startTick;
+    HAL_StatusTypeDef status;
+
     if ((sht25_i2c == NULL) ||
         (data == NULL) ||
         (length == 0U))
@@ -125,11 +132,26 @@ static HAL_StatusTypeDef SHT25_Read(uint8_t *data,
         return HAL_ERROR;
     }
 
-    return HAL_I2C_Master_Receive(sht25_i2c,
-                                  SHT25_I2C_ADDRESS,
-                                  data,
-                                  length,
-                                  SHT25_I2C_TIMEOUT_MS);
+    startTick = HAL_GetTick();
+
+    do
+    {
+        status = HAL_I2C_Master_Receive(sht25_i2c,
+                                        SHT25_I2C_ADDRESS,
+                                        data,
+                                        length,
+                                        SHT25_I2C_TIMEOUT_MS);
+
+        if (status == HAL_OK)
+        {
+            return HAL_OK;
+        }
+
+        HAL_Delay(1U);
+
+    } while ((HAL_GetTick() - startTick) < timeoutMs);
+
+    return HAL_TIMEOUT;
 }
 
 static uint8_t SHT25_CalculateCrc(const uint8_t *data,
@@ -181,9 +203,9 @@ HAL_StatusTypeDef SHT25_ReadTemperatureRaw(uint16_t *rawTemperature)
     /*
      * Typical conversion is around 85 ms for 14-bit temperature.
      */
-    HAL_Delay(100U);
-
-    if (SHT25_Read(data, sizeof(data)) != HAL_OK)
+    if (SHT25_ReadMeasurement(data,
+                              sizeof(data),
+                              SHT25_TEMP_TIMEOUT_MS) != HAL_OK)
     {
         return HAL_ERROR;
     }
@@ -243,9 +265,9 @@ HAL_StatusTypeDef SHT25_ReadHumidityRaw(uint16_t *rawHumidity)
         return HAL_ERROR;
     }
 
-    HAL_Delay(100U);
-
-    if (SHT25_Read(data, sizeof(data)) != HAL_OK)
+    if (SHT25_ReadMeasurement(data,
+                              sizeof(data),
+                              SHT25_HUMIDITY_TIMEOUT_MS) != HAL_OK)
     {
         return HAL_ERROR;
     }
