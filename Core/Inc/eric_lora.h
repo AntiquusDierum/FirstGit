@@ -21,7 +21,11 @@ typedef enum
 
     ERIC_UART_ERROR,
 
-    ERIC_BUFFER_OVERFLOW
+    ERIC_BUFFER_OVERFLOW,
+
+    ERIC_INVALID_ARGUMENT,
+
+	ERIC_NOT_INITIALISED
 
 } ERIC_Status_t;
 
@@ -36,7 +40,8 @@ ERIC_Status_t ERIC_Send(const uint8_t *data,
 
 ERIC_Status_t ERIC_SendString(const char *text);
 
-ERIC_Status_t ERIC_QueryUartBaudRate(void);
+ERIC_Status_t ERIC_QueryUartBaudRate(char *response,
+                                     uint16_t response_size);
 
 bool ERIC_ReadByte(uint8_t *byte);
 
