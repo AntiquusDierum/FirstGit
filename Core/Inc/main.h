@@ -32,7 +32,6 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "adw_uart_menu.h"
-#include "sht2x_for_stm32_hal.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

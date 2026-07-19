@@ -33,6 +33,7 @@
 #include "eric_lora.h"
 #include "terminal_console.h"
 #include "dashboard.h"
+#include "sht25.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -140,11 +141,15 @@ int main(void)
   Dashboard_Show(debug_uart);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
-  SHT2x_Init(&hi2c1);
+  if (SHT25_Init(&hi2c1) != HAL_OK)
+  {
+      const char message[] = "SHT25 sensor not detected\r\n";
 
-  SHT2x_SoftReset();
-  HAL_Delay(20);
-
+      HAL_UART_Transmit(debug_uart,
+                        (uint8_t *)message,
+                        sizeof(message) - 1U,
+                        HAL_MAX_DELAY);
+  }
   ERIC_Init(eric_uart);
   HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1);
   HAL_ADC_Start_DMA(&hadc, adcBuffer, 4);

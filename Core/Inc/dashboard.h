@@ -14,6 +14,7 @@ void Dashboard_Show(UART_HandleTypeDef *huart);
 void Dashboard_Refresh(UART_HandleTypeDef *huart);
 
 void Dashboard_DisplayDate(UART_HandleTypeDef *huart);
+void Dashboard_DisplayWeekday(UART_HandleTypeDef *huart);
 void Dashboard_DisplayTime(UART_HandleTypeDef *huart);
 
 void Dashboard_DisplayTemperature(UART_HandleTypeDef *huart);

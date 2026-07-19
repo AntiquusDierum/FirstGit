@@ -6,7 +6,7 @@
  */
 
 #include "dashboard.h"
-
+#include "sht25.h"
 #include "adc.h"
 #include "i2c.h"
 #include "rtc.h"
@@ -89,24 +89,26 @@ void Dashboard_DisplayHeartbeat(UART_HandleTypeDef * huart) {
 void Dashboard_DisplayTemperature(UART_HandleTypeDef * huart) {
 	char name_str[128] = "Temperature:\0";
 	char value_str[128] = "\0";
-	float sht_celsius = 0;
+	float temperature;
 
-	sht_celsius = SHT2x_GetTemperature(1);
+	if (SHT25_ReadTemperature(&temperature) == HAL_OK)
+	{
+		sprintf(value_str,"%.1f°C",temperature);
 
-	sprintf(value_str,"%.1f°C",sht_celsius);
-
-	DrwCellAt(LEFT_COL,16,name_str,value_str,huart);
+		DrwCellAt(LEFT_COL,16,name_str,value_str,huart);
+	}
 }
 void Dashboard_DisplayHumidity(UART_HandleTypeDef * huart) {
 	char name_str[128] = "Relative Humidity:\0";
 	char value_str[128] = "\0";
-	float sht_humid = 0;
+	float humidity;
 
-	sht_humid = SHT2x_GetRelativeHumidity(1);
+	if (SHT25_ReadHumidity(&humidity) == HAL_OK)
+	{
+		sprintf(value_str,"%.1f%%",humidity);
 
-	sprintf(value_str,"%.1f%%",sht_humid);
-
-	DrwCellAt(RIGHT_COL,16,name_str,value_str,huart);
+		DrwCellAt(RIGHT_COL,16,name_str,value_str,huart);
+	}
 }
 void Dashboard_Display9V(UART_HandleTypeDef * huart) {
 	char name_str[128] = "V_+9V_Vin:\0";
@@ -185,6 +187,54 @@ void Dashboard_DisplayDate(UART_HandleTypeDef *huart)
 
     DrwCellAt(RIGHT_COL, 5, name_str, value_str, huart);
 }
+void Dashboard_DisplayWeekday(UART_HandleTypeDef *huart)
+{
+    RTC_TimeTypeDef sTime;
+    RTC_DateTypeDef sDate;
+
+    char name_str[128] = "Weekday:";
+    char value_str[128] = "";
+
+    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+
+    switch (sDate.WeekDay)
+    {
+        case RTC_WEEKDAY_MONDAY:
+            strcpy(value_str, "Monday");
+            break;
+
+        case RTC_WEEKDAY_TUESDAY:
+            strcpy(value_str, "Tuesday");
+            break;
+
+        case RTC_WEEKDAY_WEDNESDAY:
+            strcpy(value_str, "Wednesday");
+            break;
+
+        case RTC_WEEKDAY_THURSDAY:
+            strcpy(value_str, "Thursday");
+            break;
+
+        case RTC_WEEKDAY_FRIDAY:
+            strcpy(value_str, "Friday");
+            break;
+
+        case RTC_WEEKDAY_SATURDAY:
+            strcpy(value_str, "Saturday");
+            break;
+
+        case RTC_WEEKDAY_SUNDAY:
+            strcpy(value_str, "Sunday");
+            break;
+
+        default:
+            strcpy(value_str, "Unknown");
+            break;
+    }
+
+    DrwCellAt(RIGHT_COL, 6, name_str, value_str, huart);
+}
 void Dashboard_DisplayTime(UART_HandleTypeDef *huart)
 {
     RTC_TimeTypeDef sTime;
@@ -208,7 +258,7 @@ void Dashboard_DisplayTime(UART_HandleTypeDef *huart)
             sTime.Minutes,
             sTime.Seconds);
 
-    DrwCellAt(RIGHT_COL, 6, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 7, name_str, value_str, huart);
 }
 void Dashboard_StreamTemperature(UART_HandleTypeDef * huart) {
 	char name_str[128] = "Temperature:\0";
@@ -217,7 +267,7 @@ void Dashboard_StreamTemperature(UART_HandleTypeDef * huart) {
 	uint8_t cell_str[128];
 	int i;
 
-	sht_celsius = SHT2x_GetTemperature(1);
+	SHT25_ReadTemperature(&sht_celsius);
 
 	sprintf(value_str,"%.1f°C\n\r",sht_celsius);
 
@@ -235,7 +285,7 @@ void Dashboard_StreamHumidity(UART_HandleTypeDef * huart) {
 	uint8_t cell_str[128];
 	int i;
 
-	sht_humid = SHT2x_GetRelativeHumidity(1);
+	SHT25_ReadHumidity(&sht_humid);
 
 	sprintf(value_str,"%.1f%%\n\r",sht_humid);
 
@@ -256,6 +306,7 @@ void Dashboard_Refresh(UART_HandleTypeDef *huart)
     Dashboard_DisplayLoRaEnable(huart);
 
     Dashboard_DisplayDate(huart);
+    Dashboard_DisplayWeekday(huart);
     Dashboard_DisplayTime(huart);
 
     Dashboard_DisplayTemperature(huart);

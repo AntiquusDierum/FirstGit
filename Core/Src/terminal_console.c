@@ -251,15 +251,26 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
             	                                minute,
             	                                second);
 
-                snprintf(buffer,
-                         sizeof(buffer),
-                         "RTC status=%d\r\n",
-                         (int)status);
+            	if (status == HAL_OK)
+            	{
+            	    const char message[] =
+            	        "Date and time updated\r\n";
 
-                HAL_UART_Transmit(huart,
-                                  (uint8_t *)buffer,
-                                  strlen(buffer),
-                                  HAL_MAX_DELAY);
+            	    HAL_UART_Transmit(huart,
+            	                      (uint8_t *)message,
+            	                      strlen(message),
+            	                      HAL_MAX_DELAY);
+            	}
+            	else
+            	{
+            	    const char message[] =
+            	        "Invalid calendar date or time\r\n";
+
+            	    HAL_UART_Transmit(huart,
+            	                      (uint8_t *)message,
+            	                      strlen(message),
+            	                      HAL_MAX_DELAY);
+            	}
             }
         }
     }

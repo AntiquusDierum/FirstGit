@@ -62,6 +62,35 @@ HAL_StatusTypeDef RTCService_SetDateTime(uint8_t year,
 {
     RTC_TimeTypeDef time = {0};
     RTC_DateTypeDef date = {0};
+    uint16_t full_year = (uint16_t)year + 2000U;
+
+    /*
+     * Validate the time.
+     */
+    if ((hour > 23U) ||
+        (minute > 59U) ||
+        (second > 59U))
+    {
+        return HAL_ERROR;
+    }
+
+    /*
+     * Validate the month.
+     */
+    if ((month < 1U) ||
+        (month > 12U))
+    {
+        return HAL_ERROR;
+    }
+
+    /*
+     * Validate the day against the actual month length.
+     */
+    if ((day < 1U) ||
+        (day > RTCService_DaysInMonth(full_year, month)))
+    {
+        return HAL_ERROR;
+    }
 
     time.Hours = hour;
     time.Minutes = minute;
@@ -72,29 +101,24 @@ HAL_StatusTypeDef RTCService_SetDateTime(uint8_t year,
     date.Year = year;
     date.Month = month;
     date.Date = day;
-
-    /*
-     * Retain the existing behaviour for this refactoring step.
-     * We will calculate the correct weekday separately.
-     */
-
-    if ((month < 1U) ||
-        (month > 12U))
-    {
-        return HAL_ERROR;
-    }
-
-    if ((day < 1U) ||
-        (day > RTCService_DaysInMonth(year + 2000U,
-                                      month)))
-    {
-        return HAL_ERROR;
-    }
-
     date.WeekDay =
-        RTCService_CalculateWeekday(year + 2000U,
+        RTCService_CalculateWeekday(full_year,
                                     month,
                                     day);
+
+    if (HAL_RTC_SetTime(&hrtc,
+                        &time,
+                        RTC_FORMAT_BIN) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    if (HAL_RTC_SetDate(&hrtc,
+                        &date,
+                        RTC_FORMAT_BIN) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
 
     return HAL_OK;
 }
