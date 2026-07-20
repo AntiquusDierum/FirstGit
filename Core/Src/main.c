@@ -108,6 +108,9 @@ int main(void)
 //  static UART_HandleTypeDef *lora_uart;
   uint32_t lastSecond = 0xFFFFFFFF;
   uint32_t lastMinute = 0xFFFFFFFF;
+  char response[32];
+  ERIC_Status_t status;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -141,6 +144,24 @@ int main(void)
   Dashboard_Show(debug_uart);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
+
+  /* Allow the eRIC4 module to power up. */
+  HAL_Delay(500);
+
+  /* Initialise the driver before enabling receive interrupts. */
+  status = ERIC_Init(eric_uart);
+
+  status = ERIC_SetAirDataRateB4(response,
+                                 sizeof(response));
+
+  HAL_Delay(500);
+
+  if (status == ERIC_OK)
+  {
+      status = ERIC_QueryAirDataRate(response,
+                                     sizeof(response));
+  }
+
   if (SHT25_Init(&hi2c1) != HAL_OK)
   {
       const char message[] = "SHT25 sensor not detected\r\n";
@@ -150,8 +171,6 @@ int main(void)
                         sizeof(message) - 1U,
                         HAL_MAX_DELAY);
   }
-  ERIC_Init(eric_uart);
-  HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1);
   HAL_ADC_Start_DMA(&hadc, adcBuffer, 4);
 
   /* USER CODE END 2 */

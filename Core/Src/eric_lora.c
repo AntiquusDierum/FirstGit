@@ -8,8 +8,9 @@
 #include "ringbuffer.h"
 #include <string.h>
 
-#define ERIC_RX_BUFFER_SIZE    256U
-#define ERIC_UART_TIMEOUT_MS  1000U
+#define ERIC_RX_BUFFER_SIZE    			256U
+#define ERIC_UART_TIMEOUT_MS  			1000U
+#define ERIC_RESPONSE_IDLE_TIMEOUT_MS   20U
 
 static UART_HandleTypeDef *eric_handle;
 
@@ -26,6 +27,8 @@ static ERIC_Status_t ERIC_ReadResponse(char *response,
                                        uint32_t timeout_ms);
 
 static void ERIC_ClearReceiveBuffer(void);
+
+static ERIC_Status_t ERIC_ApplyCommand(const char *command);
 
 ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart)
 {
@@ -138,6 +141,50 @@ static ERIC_Status_t ERIC_SendCommand(const char *command,
                              ERIC_UART_TIMEOUT_MS);
 }
 
+static ERIC_Status_t ERIC_ApplyCommand(const char *command)
+{
+    char echo[32];
+    ERIC_Status_t status;
+
+    if (command == NULL)
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    ERIC_ClearReceiveBuffer();
+
+    status = ERIC_SendString(command);
+
+    if (status != ERIC_OK)
+    {
+        return status;
+    }
+
+    /*
+     * A setting command must first be echoed completely
+     * by the module.
+     */
+    status = ERIC_ReadResponse(echo,
+                               sizeof(echo),
+                               ERIC_UART_TIMEOUT_MS);
+
+    if (status != ERIC_OK)
+    {
+        return status;
+    }
+
+    if (strcmp(echo, command) != 0)
+    {
+        return ERIC_BAD_RESPONSE;
+    }
+
+    /*
+     * Only after receiving the complete echo may ACK
+     * be sent.
+     */
+    return ERIC_SendString("ACK");
+}
+
 static void ERIC_ClearReceiveBuffer(void)
 {
     uint8_t byte;
@@ -153,20 +200,28 @@ static ERIC_Status_t ERIC_ReadResponse(char *response,
                                        uint32_t timeout_ms)
 {
     uint32_t start_tick;
+    uint32_t last_byte_tick;
     uint16_t index = 0U;
     uint8_t byte;
+    bool received_byte = false;
 
     if ((response == NULL) || (response_size < 2U))
     {
         return ERIC_INVALID_ARGUMENT;
     }
 
+    response[0] = '\0';
+
     start_tick = HAL_GetTick();
+    last_byte_tick = start_tick;
 
     while ((HAL_GetTick() - start_tick) < timeout_ms)
     {
         if (ERIC_ReadByte(&byte))
         {
+            received_byte = true;
+            last_byte_tick = HAL_GetTick();
+
             if ((byte == '\r') || (byte == '\n'))
             {
                 if (index > 0U)
@@ -186,6 +241,13 @@ static ERIC_Status_t ERIC_ReadResponse(char *response,
 
             response[index] = (char)byte;
             index++;
+        }
+        else if (received_byte &&
+                 ((HAL_GetTick() - last_byte_tick) >=
+                  ERIC_RESPONSE_IDLE_TIMEOUT_MS))
+        {
+            response[index] = '\0';
+            return ERIC_OK;
         }
     }
 
@@ -215,4 +277,67 @@ void ERIC_Task(void)
     {
         lastTick = HAL_GetTick();
     }
+}
+ERIC_Status_t ERIC_QueryChannel(char *response,
+                                uint16_t response_size)
+{
+    if ((response == NULL) || (response_size < 2U))
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    return ERIC_SendCommand("ER_CMD#C?",
+                            response,
+                            response_size);
+}
+ERIC_Status_t ERIC_QueryAirDataRate(char *response,
+                                    uint16_t response_size)
+{
+    if ((response == NULL) || (response_size < 2U))
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    return ERIC_SendCommand("ER_CMD#B?",
+                            response,
+                            response_size);
+}
+ERIC_Status_t ERIC_QueryOperatingMode(char *response,
+                                      uint16_t response_size)
+{
+    if ((response == NULL) || (response_size < 2U))
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    return ERIC_SendCommand("ER_CMD#T?",
+                            response,
+                            response_size);
+}
+
+ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
+                                    uint16_t echo_size)
+{
+    ERIC_Status_t status;
+
+    if ((echo == NULL) || (echo_size < 2U))
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    status = ERIC_SendCommand("ER_CMD#B4",
+                              echo,
+                              echo_size);
+
+    if (status != ERIC_OK)
+    {
+        return status;
+    }
+
+    if (strcmp(echo, "ER_CMD#B4") != 0)
+    {
+        return ERIC_BAD_RESPONSE;
+    }
+
+    return ERIC_SendString("ACK");
 }

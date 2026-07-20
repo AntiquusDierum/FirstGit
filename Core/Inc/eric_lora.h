@@ -25,7 +25,9 @@ typedef enum
 
     ERIC_INVALID_ARGUMENT,
 
-	ERIC_NOT_INITIALISED
+	ERIC_NOT_INITIALISED,
+
+	ERIC_BAD_RESPONSE
 
 } ERIC_Status_t;
 
@@ -42,6 +44,18 @@ ERIC_Status_t ERIC_SendString(const char *text);
 
 ERIC_Status_t ERIC_QueryUartBaudRate(char *response,
                                      uint16_t response_size);
+
+ERIC_Status_t ERIC_QueryChannel(char *response,
+                                uint16_t response_size);
+
+ERIC_Status_t ERIC_QueryAirDataRate(char *response,
+                                    uint16_t response_size);
+
+ERIC_Status_t ERIC_QueryOperatingMode(char *response,
+                                      uint16_t response_size);
+
+ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
+                                    uint16_t echo_size);
 
 bool ERIC_ReadByte(uint8_t *byte);
 
