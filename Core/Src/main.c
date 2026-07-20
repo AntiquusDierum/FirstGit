@@ -143,21 +143,41 @@ int main(void)
   HAL_UART_Receive_IT(debug_uart,debug_rx,1);
   Dashboard_Show(debug_uart);
   HAL_Delay(50);
-  HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB,
+                    en_LoRa_Pin,
+                    GPIO_PIN_SET);
 
   /* Allow the eRIC4 module to power up. */
   HAL_Delay(500);
 
-  /* Initialise the driver before enabling receive interrupts. */
   status = ERIC_Init(eric_uart);
-
-  status = ERIC_SetAirDataRateB4(response,
-                                 sizeof(response));
-
-  HAL_Delay(500);
 
   if (status == ERIC_OK)
   {
+      /*
+       * Start reception before sending any commands.
+       * The callback will re-arm it after each byte.
+       */
+      if (HAL_UART_Receive_IT(eric_uart,
+                              &eric_uart_rx,
+                              1) != HAL_OK)
+      {
+          status = ERIC_UART_ERROR;
+      }
+  }
+
+  if (status == ERIC_OK)
+  {
+      HAL_Delay(100);
+
+      status = ERIC_SetAirDataRateB4(response,
+                                     sizeof(response));
+  }
+
+  if (status == ERIC_OK)
+  {
+      HAL_Delay(500);
+
       status = ERIC_QueryAirDataRate(response,
                                      sizeof(response));
   }

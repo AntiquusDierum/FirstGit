@@ -302,18 +302,6 @@ ERIC_Status_t ERIC_QueryAirDataRate(char *response,
                             response,
                             response_size);
 }
-ERIC_Status_t ERIC_QueryOperatingMode(char *response,
-                                      uint16_t response_size)
-{
-    if ((response == NULL) || (response_size < 2U))
-    {
-        return ERIC_INVALID_ARGUMENT;
-    }
-
-    return ERIC_SendCommand("ER_CMD#T?",
-                            response,
-                            response_size);
-}
 
 ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
                                     uint16_t echo_size)

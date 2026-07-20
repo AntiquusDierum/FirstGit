@@ -51,9 +51,6 @@ ERIC_Status_t ERIC_QueryChannel(char *response,
 ERIC_Status_t ERIC_QueryAirDataRate(char *response,
                                     uint16_t response_size);
 
-ERIC_Status_t ERIC_QueryOperatingMode(char *response,
-                                      uint16_t response_size);
-
 ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
                                     uint16_t echo_size);
 
