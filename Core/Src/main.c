@@ -170,9 +170,13 @@ int main(void)
   {
       HAL_Delay(100);
 
-      status = ERIC_SetAirDataRateB4(response,
-                                     sizeof(response));
+/*      status = ERIC_SetAirDataRateB4(response,
+                                     sizeof(response));*/
   }
+
+  HAL_Delay(500);
+  status = ERIC_SendString("Hello from STM32");
+  HAL_Delay(100);
 
   if (status == ERIC_OK)
   {
@@ -231,15 +235,17 @@ int main(void)
 	  }
 	  while (ERIC_ReadByte(&c))
 	  {
-	      HAL_UART_Transmit(debug_uart, &c, 1, HAL_MAX_DELAY);
+	      char hex_text[8];
 
-	      if (c == '\r')
-	      {
-	          HAL_UART_Transmit(debug_uart,
-	                            (uint8_t *)"\n\r",
-	                            2,
-	                            HAL_MAX_DELAY);
-	      }
+	      int length = snprintf(hex_text,
+	                            sizeof(hex_text),
+	                            "%02X ",
+	                            c);
+
+	      HAL_UART_Transmit(debug_uart,
+	                        (uint8_t *)hex_text,
+	                        (uint16_t)length,
+	                        HAL_MAX_DELAY);
 	  }
 
 	  TerminalConsole_Task(debug_uart);
