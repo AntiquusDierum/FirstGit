@@ -54,10 +54,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t debug_rx[5];
-uint8_t eric_uart_rx;
+//uint8_t debug_rx[5];
+//uint8_t eric_uart_rx;
 uint8_t debug_tx[80];
 uint32_t adcBuffer[ADC_CHANS];
+uint8_t debug_uart_rx;
+uint8_t eric_uart_rx;
+
+volatile uint8_t debug_tx_pending = 0;
+uint8_t debug_to_eric_byte = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,23 +70,25 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void InitializeTimer(void);
 void DisplayString(UART_HandleTypeDef * huart);
+static void RadioTerminalBridge(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if (huart == debug_uart)
-	{
-	    TerminalConsole_RxByte(debug_rx[0]);
+    if (huart == debug_uart)
+    {
+        debug_to_eric_byte = debug_uart_rx;
+        debug_tx_pending = 1;
 
-	    HAL_UART_Receive_IT(debug_uart,
-	                        debug_rx,
-	                        1);
-	}
+        HAL_UART_Receive_IT(debug_uart, &debug_uart_rx, 1);
+    }
+
     if (huart == eric_uart)
     {
         ERIC_UART_RxByte(eric_uart_rx);
+
         HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1);
     }
 }
@@ -140,7 +147,8 @@ int main(void)
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim6);
-  HAL_UART_Receive_IT(debug_uart,debug_rx,1);
+  HAL_UART_Receive_IT(debug_uart, &debug_uart_rx, 1);
+  HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1);
   Dashboard_Show(debug_uart);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB,
@@ -206,9 +214,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  ERIC_Task();
+//	  ERIC_Task();
 	  uint8_t c;
 //	  static uint8_t old_redraw = 0xFF;
+	  RadioTerminalBridge();
 
 	  if (TerminalConsole_RedrawCommandScreen())
 	  {
@@ -372,7 +381,44 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void RadioTerminalBridge(void)
+{
+    uint8_t received_byte;
 
+    /*
+     * Send a character typed into the STM32 terminal
+     * to the remote eRIC.
+     */
+    if (debug_tx_pending)
+    {
+        debug_tx_pending = 0;
+
+        ERIC_Send(&debug_to_eric_byte, 1);
+
+        /*
+         * Local echo so the character also appears
+         * in the STM32 terminal.
+         */
+        HAL_UART_Transmit(debug_uart,
+                          &debug_to_eric_byte,
+                          1,
+                          HAL_MAX_DELAY);
+    }
+
+    /*
+     * Display all bytes received from the remote eRIC.
+     */
+    while (ERIC_Available())
+    {
+        if (ERIC_ReadByte(&received_byte))
+        {
+            HAL_UART_Transmit(debug_uart,
+                              &received_byte,
+                              1,
+                              HAL_MAX_DELAY);
+        }
+    }
+}
 /* USER CODE END 4 */
 
 /**
