@@ -8,6 +8,7 @@
 #include "terminal_console.h"
 #include "dashboard.h"
 #include "rtc_service.h"
+#include "eric_lora.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -26,6 +27,34 @@ static volatile uint8_t cmd_ready = 0;
 static volatile uint8_t command_mode = 0;
 static volatile uint8_t redraw_command_screen = 0;
 static volatile uint8_t redraw_dashboard = 0;
+
+static void TerminalConsole_PrintEricResult(
+    UART_HandleTypeDef *huart,
+    ERIC_Status_t status,
+    const char *response)
+{
+    char text[80];
+
+    if (status == ERIC_OK)
+    {
+        snprintf(text,
+                 sizeof(text),
+                 "eRIC response: %s\r\n",
+                 response);
+    }
+    else
+    {
+        snprintf(text,
+                 sizeof(text),
+                 "eRIC error: %d\r\n",
+                 (int)status);
+    }
+
+    HAL_UART_Transmit(huart,
+                      (uint8_t *)text,
+                      strlen(text),
+                      HAL_MAX_DELAY);
+}
 
 void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
 {
@@ -57,7 +86,10 @@ void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart)
         "temp\r\n"
         "humid\r\n"
         "datetime\r\n"
-        "setdt yyyy-mm-dd hh:mm:ss\r\n";
+    	"eric baud\r\n"
+    	"eric rate\r\n"
+    	"eric channel\r\n"
+    	"setdt yyyy-mm-dd hh:mm:ss\r\n";
 
     HAL_UART_Transmit(huart,
                       (uint8_t *)options,
@@ -273,6 +305,42 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
             	}
             }
         }
+    }
+    else if (strcmp(cmd_buffer, "eric baud") == 0)
+    {
+        char response[32];
+
+        ERIC_Status_t status =
+            ERIC_QueryUartBaudRate(response,
+                                   sizeof(response));
+
+        TerminalConsole_PrintEricResult(huart,
+                                        status,
+                                        response);
+    }
+    else if (strcmp(cmd_buffer, "eric rate") == 0)
+    {
+        char response[32];
+
+        ERIC_Status_t status =
+            ERIC_QueryAirDataRate(response,
+                                  sizeof(response));
+
+        TerminalConsole_PrintEricResult(huart,
+                                        status,
+                                        response);
+    }
+    else if (strcmp(cmd_buffer, "eric channel") == 0)
+    {
+        char response[32];
+
+        ERIC_Status_t status =
+            ERIC_QueryChannel(response,
+                              sizeof(response));
+
+        TerminalConsole_PrintEricResult(huart,
+                                        status,
+                                        response);
     }
     else
     {

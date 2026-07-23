@@ -18,9 +18,13 @@ static RingBuffer_t rx_fifo;
 
 static uint8_t rx_storage[ERIC_RX_BUFFER_SIZE];
 
-static ERIC_Status_t ERIC_SendCommand(const char *command,
-                                      char *response,
-                                      uint16_t response_size);
+static ERIC_Status_t ERIC_SendCommandOnce(const char *command,
+                                          char *response,
+                                          uint16_t response_size);
+
+static ERIC_Status_t ERIC_QueryCommand(const char *command,
+                                       char *response,
+                                       uint16_t response_size);
 
 static ERIC_Status_t ERIC_ReadResponse(char *response,
                                        uint16_t response_size,
@@ -111,9 +115,9 @@ ERIC_Status_t ERIC_SendString(const char *text)
                      (uint16_t)strlen(text));
 }
 
-static ERIC_Status_t ERIC_SendCommand(const char *command,
-                                      char *response,
-                                      uint16_t response_size)
+static ERIC_Status_t ERIC_SendCommandOnce(const char *command,
+                                          char *response,
+                                          uint16_t response_size)
 {
     ERIC_Status_t status;
 
@@ -139,6 +143,43 @@ static ERIC_Status_t ERIC_SendCommand(const char *command,
     return ERIC_ReadResponse(response,
                              response_size,
                              ERIC_UART_TIMEOUT_MS);
+}
+
+static ERIC_Status_t ERIC_QueryCommand(const char *command,
+                                       char *response,
+                                       uint16_t response_size)
+{
+    ERIC_Status_t status;
+
+    /*
+     * Some eRIC4 modules appear to discard the first command or
+     * response following a power cycle. Retry a read-only query
+     * once if the first attempt times out.
+     */
+    for (uint8_t attempt = 0U; attempt < 2U; attempt++)
+    {
+        status = ERIC_SendCommandOnce(command,
+                                      response,
+                                      response_size);
+
+        if (status == ERIC_OK)
+        {
+            return ERIC_OK;
+        }
+
+        if (status != ERIC_TIMEOUT)
+        {
+            return status;
+        }
+
+        /*
+         * Allow the module and UART receiver to settle before
+         * repeating the query.
+         */
+        HAL_Delay(50U);
+    }
+
+    return ERIC_TIMEOUT;
 }
 
 static ERIC_Status_t ERIC_ApplyCommand(const char *command)
@@ -264,9 +305,9 @@ ERIC_Status_t ERIC_QueryUartBaudRate(char *response,
 	    return ERIC_INVALID_ARGUMENT;
 	}
 
-    return ERIC_SendCommand("ER_CMD#U?",
-                            response,
-                            response_size);
+	return ERIC_QueryCommand("ER_CMD#U?",
+	                         response,
+	                         response_size);
 }
 
 void ERIC_Task(void)
@@ -286,9 +327,9 @@ ERIC_Status_t ERIC_QueryChannel(char *response,
         return ERIC_INVALID_ARGUMENT;
     }
 
-    return ERIC_SendCommand("ER_CMD#C?",
-                            response,
-                            response_size);
+    return ERIC_QueryCommand("ER_CMD#C?",
+                             response,
+                             response_size);
 }
 ERIC_Status_t ERIC_QueryAirDataRate(char *response,
                                     uint16_t response_size)
@@ -298,9 +339,9 @@ ERIC_Status_t ERIC_QueryAirDataRate(char *response,
         return ERIC_INVALID_ARGUMENT;
     }
 
-    return ERIC_SendCommand("ER_CMD#B?",
-                            response,
-                            response_size);
+    return ERIC_QueryCommand("ER_CMD#B?",
+                             response,
+                             response_size);
 }
 
 ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
@@ -313,9 +354,9 @@ ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
         return ERIC_INVALID_ARGUMENT;
     }
 
-    status = ERIC_SendCommand("ER_CMD#B4",
-                              echo,
-                              echo_size);
+    status = ERIC_SendCommandOnce("ER_CMD#B4",
+                                  echo,
+                                  echo_size);
 
     if (status != ERIC_OK)
     {
