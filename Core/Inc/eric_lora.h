@@ -14,26 +14,25 @@
 typedef enum
 {
     ERIC_OK = 0,
-
     ERIC_BUSY,
-
     ERIC_TIMEOUT,
-
     ERIC_UART_ERROR,
-
     ERIC_BUFFER_OVERFLOW,
-
     ERIC_INVALID_ARGUMENT,
-
-	ERIC_NOT_INITIALISED,
-
-	ERIC_BAD_RESPONSE
+    ERIC_NOT_INITIALISED,
+    ERIC_BAD_RESPONSE
 
 } ERIC_Status_t;
 
-ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart);
+typedef enum
+{
+    ERIC_PARAMETER_UART_BAUD = 0,
+    ERIC_PARAMETER_AIR_DATA_RATE,
+    ERIC_PARAMETER_CHANNEL
 
-void ERIC_Task(void);
+} ERIC_Parameter_t;
+
+ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart);
 
 void ERIC_UART_RxByte(uint8_t byte);
 
@@ -42,20 +41,27 @@ ERIC_Status_t ERIC_Send(const uint8_t *data,
 
 ERIC_Status_t ERIC_SendString(const char *text);
 
+bool ERIC_ReadByte(uint8_t *byte);
+
+uint16_t ERIC_Available(void);
+
+/*
+ * Generic parameter query.
+ */
+ERIC_Status_t ERIC_QueryParameter(ERIC_Parameter_t parameter,
+                                  char *response,
+                                  uint16_t response_size);
+
+/*
+ * Convenience query functions.
+ */
 ERIC_Status_t ERIC_QueryUartBaudRate(char *response,
                                      uint16_t response_size);
-
-ERIC_Status_t ERIC_QueryChannel(char *response,
-                                uint16_t response_size);
 
 ERIC_Status_t ERIC_QueryAirDataRate(char *response,
                                     uint16_t response_size);
 
-ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
-                                    uint16_t echo_size);
-
-bool ERIC_ReadByte(uint8_t *byte);
-
-uint16_t ERIC_Available(void);
+ERIC_Status_t ERIC_QueryChannel(char *response,
+                                uint16_t response_size);
 
 #endif /* INC_ERIC_LORA_H_ */

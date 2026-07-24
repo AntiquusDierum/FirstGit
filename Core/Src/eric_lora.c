@@ -34,6 +34,8 @@ static void ERIC_ClearReceiveBuffer(void);
 
 static ERIC_Status_t ERIC_ApplyCommand(const char *command);
 
+static const char *ERIC_GetQueryCommand(ERIC_Parameter_t parameter);
+
 ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart)
 {
 	if (huart == NULL)
@@ -300,73 +302,64 @@ static ERIC_Status_t ERIC_ReadResponse(char *response,
 ERIC_Status_t ERIC_QueryUartBaudRate(char *response,
                                      uint16_t response_size)
 {
-	if ((response == NULL) || (response_size < 2U))
-	{
-	    return ERIC_INVALID_ARGUMENT;
-	}
-
-	return ERIC_QueryCommand("ER_CMD#U?",
-	                         response,
-	                         response_size);
+    return ERIC_QueryParameter(ERIC_PARAMETER_UART_BAUD,
+                               response,
+                               response_size);
 }
 
-void ERIC_Task(void)
-{
-    static uint32_t lastTick = 0;
-
-    if ((HAL_GetTick() - lastTick) > 2000)
-    {
-        lastTick = HAL_GetTick();
-    }
-}
-ERIC_Status_t ERIC_QueryChannel(char *response,
-                                uint16_t response_size)
-{
-    if ((response == NULL) || (response_size < 2U))
-    {
-        return ERIC_INVALID_ARGUMENT;
-    }
-
-    return ERIC_QueryCommand("ER_CMD#C?",
-                             response,
-                             response_size);
-}
 ERIC_Status_t ERIC_QueryAirDataRate(char *response,
                                     uint16_t response_size)
 {
+    return ERIC_QueryParameter(ERIC_PARAMETER_AIR_DATA_RATE,
+                               response,
+                               response_size);
+}
+
+ERIC_Status_t ERIC_QueryChannel(char *response,
+                                uint16_t response_size)
+{
+    return ERIC_QueryParameter(ERIC_PARAMETER_CHANNEL,
+                               response,
+                               response_size);
+}
+
+static const char *ERIC_GetQueryCommand(ERIC_Parameter_t parameter)
+{
+    switch (parameter)
+    {
+        case ERIC_PARAMETER_UART_BAUD:
+            return "ER_CMD#U?";
+
+        case ERIC_PARAMETER_AIR_DATA_RATE:
+            return "ER_CMD#B?";
+
+        case ERIC_PARAMETER_CHANNEL:
+            return "ER_CMD#C?";
+
+        default:
+            return NULL;
+    }
+}
+
+ERIC_Status_t ERIC_QueryParameter(ERIC_Parameter_t parameter,
+                                  char *response,
+                                  uint16_t response_size)
+{
+    const char *command;
+
     if ((response == NULL) || (response_size < 2U))
     {
         return ERIC_INVALID_ARGUMENT;
     }
 
-    return ERIC_QueryCommand("ER_CMD#B?",
-                             response,
-                             response_size);
-}
+    command = ERIC_GetQueryCommand(parameter);
 
-ERIC_Status_t ERIC_SetAirDataRateB4(char *echo,
-                                    uint16_t echo_size)
-{
-    ERIC_Status_t status;
-
-    if ((echo == NULL) || (echo_size < 2U))
+    if (command == NULL)
     {
         return ERIC_INVALID_ARGUMENT;
     }
 
-    status = ERIC_SendCommandOnce("ER_CMD#B4",
-                                  echo,
-                                  echo_size);
-
-    if (status != ERIC_OK)
-    {
-        return status;
-    }
-
-    if (strcmp(echo, "ER_CMD#B4") != 0)
-    {
-        return ERIC_BAD_RESPONSE;
-    }
-
-    return ERIC_SendString("ACK");
+    return ERIC_QueryCommand(command,
+                             response,
+                             response_size);
 }

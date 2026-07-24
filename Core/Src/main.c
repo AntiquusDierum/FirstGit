@@ -89,6 +89,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
                             1);
     }
 }
+
+extern uint32_t adcBuffer[ADC_CHANS];
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+    if (hadc->Instance == ADC1)
+    {
+        Dashboard_UpdateAdcValues(adcBuffer, ADC_CHANS);
+    }
+}
 /* USER CODE END 0 */
 
 /**
@@ -136,7 +146,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim6);
   HAL_UART_Receive_IT(debug_uart, &debug_uart_rx, 1);
-  Dashboard_Show(debug_uart);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
 
@@ -171,7 +180,22 @@ int main(void)
 
       HAL_UART_Transmit(debug_uart, (uint8_t *)message, sizeof(message) - 1U, HAL_MAX_DELAY);
   }
-  HAL_ADC_Start_DMA(&hadc, adcBuffer, 4);
+
+  if (HAL_ADC_Start_DMA(&hadc,
+                        adcBuffer,
+                        ADC_CHANS) != HAL_OK)
+  {
+      Error_Handler();
+  }
+
+  /*
+   * Give the ADC time to complete at least one scan before
+   * displaying ADC-derived values.
+   */
+  HAL_Delay(10U);
+
+  Dashboard_Show(debug_uart);
+  Dashboard_Refresh(debug_uart);
 
   /* USER CODE END 2 */
 
