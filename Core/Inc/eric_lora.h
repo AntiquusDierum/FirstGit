@@ -51,7 +51,14 @@ uint16_t ERIC_Available(void);
 ERIC_Status_t ERIC_QueryParameter(ERIC_Parameter_t parameter,
                                   char *response,
                                   uint16_t response_size);
-
+/*
+ * Set a parameter using its eRIC command value.
+ *
+ * The value is the numeric code used by the eRIC protocol,
+ * for example 4 for ER_CMD#B4.
+ */
+ERIC_Status_t ERIC_SetParameter(ERIC_Parameter_t parameter,
+                                uint8_t value);
 /*
  * Convenience query functions.
  */

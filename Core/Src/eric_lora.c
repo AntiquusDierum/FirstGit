@@ -7,6 +7,7 @@
 #include "eric_lora.h"
 #include "ringbuffer.h"
 #include <string.h>
+#include <stdio.h>
 
 #define ERIC_RX_BUFFER_SIZE    			256U
 #define ERIC_UART_TIMEOUT_MS  			1000U
@@ -35,6 +36,13 @@ static void ERIC_ClearReceiveBuffer(void);
 static ERIC_Status_t ERIC_ApplyCommand(const char *command);
 
 static const char *ERIC_GetQueryCommand(ERIC_Parameter_t parameter);
+
+static char ERIC_GetParameterCommandLetter(ERIC_Parameter_t parameter);
+
+static ERIC_Status_t ERIC_BuildSetCommand(ERIC_Parameter_t parameter,
+                                          uint8_t value,
+                                          char *command,
+                                          uint16_t command_size);
 
 ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart)
 {
@@ -182,6 +190,24 @@ static ERIC_Status_t ERIC_QueryCommand(const char *command,
     }
 
     return ERIC_TIMEOUT;
+}
+
+static char ERIC_GetParameterCommandLetter(ERIC_Parameter_t parameter)
+{
+    switch (parameter)
+    {
+        case ERIC_PARAMETER_UART_BAUD:
+            return 'U';
+
+        case ERIC_PARAMETER_AIR_DATA_RATE:
+            return 'B';
+
+        case ERIC_PARAMETER_CHANNEL:
+            return 'C';
+
+        default:
+            return '\0';
+    }
 }
 
 static ERIC_Status_t ERIC_ApplyCommand(const char *command)
@@ -362,4 +388,67 @@ ERIC_Status_t ERIC_QueryParameter(ERIC_Parameter_t parameter,
     return ERIC_QueryCommand(command,
                              response,
                              response_size);
+}
+
+static ERIC_Status_t ERIC_BuildSetCommand(ERIC_Parameter_t parameter,
+                                          uint8_t value,
+                                          char *command,
+                                          uint16_t command_size)
+{
+    char command_letter;
+    int written;
+
+    if ((command == NULL) || (command_size == 0U))
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    /*
+     * Current eRIC parameter commands use a single decimal digit.
+     * Parameter-specific validation can be tightened later.
+     */
+    if (value > 9U)
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    command_letter = ERIC_GetParameterCommandLetter(parameter);
+
+    if (command_letter == '\0')
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    written = snprintf(command,
+                       command_size,
+                       "ER_CMD#%c%u",
+                       command_letter,
+                       (unsigned int)value);
+
+    if ((written < 0) ||
+        ((uint16_t)written >= command_size))
+    {
+        return ERIC_BUFFER_OVERFLOW;
+    }
+
+    return ERIC_OK;
+}
+
+ERIC_Status_t ERIC_SetParameter(ERIC_Parameter_t parameter,
+                                uint8_t value)
+{
+    char command[16];
+    ERIC_Status_t status;
+
+    status = ERIC_BuildSetCommand(parameter,
+                                  value,
+                                  command,
+                                  sizeof(command));
+
+    if (status != ERIC_OK)
+    {
+        return status;
+    }
+
+    return ERIC_ApplyCommand(command);
 }

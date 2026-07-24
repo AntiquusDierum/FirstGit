@@ -27,7 +27,19 @@ static volatile uint8_t cmd_ready = 0;
 static volatile uint8_t command_mode = 0;
 static volatile uint8_t redraw_command_screen = 0;
 static volatile uint8_t redraw_dashboard = 0;
+static UART_HandleTypeDef *terminal_uart = NULL;
 
+static void TerminalConsole_Echo(const uint8_t *data,
+                                 uint16_t length)
+{
+    if (terminal_uart != NULL)
+    {
+        HAL_UART_Transmit(terminal_uart,
+                          (uint8_t *)data,
+                          length,
+                          HAL_MAX_DELAY);
+    }
+}
 static void TerminalConsole_PrintEricResult(
     UART_HandleTypeDef *huart,
     ERIC_Status_t status,
@@ -430,12 +442,15 @@ void TerminalConsole_RxByte(uint8_t ch)
             cmd_index = 0U;
         }
     }
-    else if (ch == '\n')
+    else if ((ch == '\b') || (ch == 0x7FU))
     {
-        /*
-         * Ignore LF. This allows terminals configured for CR+LF
-         * to work without entering an extra blank command.
-         */
+        if ((command_mode != 0U) && (cmd_index > 0U))
+        {
+            cmd_index--;
+            cmd_buffer[cmd_index] = '\0';
+
+            TerminalConsole_Echo((uint8_t *)"\b \b", 3U);
+        }
     }
     else if (command_mode != 0U)
     {
@@ -443,6 +458,9 @@ void TerminalConsole_RxByte(uint8_t ch)
         {
             cmd_buffer[cmd_index] = (char)ch;
             cmd_index++;
+            cmd_buffer[cmd_index] = '\0';
+
+            TerminalConsole_Echo(&ch, 1U);
         }
     }
 }
