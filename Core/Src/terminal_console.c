@@ -32,7 +32,9 @@ static UART_HandleTypeDef *terminal_uart = NULL;
 static void TerminalConsole_Echo(const uint8_t *data,
                                  uint16_t length)
 {
-    if (terminal_uart != NULL)
+    if ((terminal_uart != NULL) &&
+        (data != NULL) &&
+        (length > 0U))
     {
         HAL_UART_Transmit(terminal_uart,
                           (uint8_t *)data,
@@ -70,7 +72,9 @@ static void TerminalConsole_PrintEricResult(
 
 void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
 {
-    const char text[] =
+	terminal_uart = huart;
+
+	const char text[] =
         "========================================\r\n"
         "         COMMAND CONSOLE\r\n"
         "========================================\r\n"
@@ -436,24 +440,57 @@ void TerminalConsole_RxByte(uint8_t ch)
                 /*
                  * A complete command is ready for the main loop.
                  */
-                cmd_ready = 1U;
+            	TerminalConsole_Echo(
+            	    (const uint8_t *)"\r\n",
+            	    2U);
+            	cmd_ready = 1U;
             }
 
             cmd_index = 0U;
         }
     }
+    else if (ch == '\n')
+    {
+        /*
+         * Ignore LF. This allows terminals configured for CR+LF
+         * to work without entering an extra blank command.
+         */
+    }
+    else if (ch == 0x1BU)
+    {
+        /*
+         * Escape abandons the current command line.
+         */
+        if (command_mode != 0U)
+        {
+            cmd_index = 0U;
+            cmd_buffer[0] = '\0';
+
+            TerminalConsole_Echo(
+                (const uint8_t *)"\r\nCommand> ",
+                11U);
+        }
+    }
     else if ((ch == '\b') || (ch == 0x7FU))
     {
+        /*
+         * Remove one character, but never erase the prompt.
+         */
         if ((command_mode != 0U) && (cmd_index > 0U))
         {
             cmd_index--;
             cmd_buffer[cmd_index] = '\0';
 
-            TerminalConsole_Echo((uint8_t *)"\b \b", 3U);
+            TerminalConsole_Echo(
+                (const uint8_t *)"\b \b",
+                3U);
         }
     }
     else if (command_mode != 0U)
     {
+        /*
+         * Store and echo a normal character.
+         */
         if (cmd_index < (CMD_BUFFER_SIZE - 1U))
         {
             cmd_buffer[cmd_index] = (char)ch;
