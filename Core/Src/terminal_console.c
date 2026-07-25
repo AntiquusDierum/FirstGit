@@ -31,17 +31,49 @@ static volatile uint8_t redraw_command_screen = 0;
 static volatile uint8_t redraw_dashboard = 0;
 static UART_HandleTypeDef *terminal_uart = NULL;
 
-static void TerminalConsole_Echo(const uint8_t *data,
-                                 uint16_t length)
+typedef void (*TerminalCommandHandler_t)(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+
+typedef struct
+{
+    const char *name;
+    TerminalCommandHandler_t handler;
+} TerminalCommand_t;
+
+static void TerminalConsole_CommandHelp(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandTemperature(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandHumidity(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+
+static const TerminalCommand_t terminal_commands[] =
+{
+    { "help",     TerminalConsole_CommandHelp },
+    { "refresh",  TerminalConsole_CommandRefresh },
+    { "temp",     TerminalConsole_CommandTemperature },
+    { "humid",    TerminalConsole_CommandHumidity },
+    { "datetime", TerminalConsole_CommandDateTime },
+    { "setdt",    TerminalConsole_CommandSetDateTime },
+	{ "eric",     TerminalConsole_CommandEric }
+
+};
+
+static void TerminalConsole_Write(UART_HandleTypeDef *huart, const char *text)
+{
+    HAL_UART_Transmit(huart, (uint8_t *)text, strlen(text), HAL_MAX_DELAY);
+}
+
+static bool TerminalConsole_DispatchCommand( UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+
+static void TerminalConsole_Echo(const uint8_t *data, uint16_t length)
 {
     if ((terminal_uart != NULL) &&
         (data != NULL) &&
         (length > 0U))
     {
-        HAL_UART_Transmit(terminal_uart,
-                          (uint8_t *)data,
-                          length,
-                          HAL_MAX_DELAY);
+        HAL_UART_Transmit(terminal_uart, (uint8_t *)data, length, HAL_MAX_DELAY);
     }
 }
 static void TerminalConsole_PrintEricResult(
@@ -180,261 +212,28 @@ static uint8_t TerminalConsole_Tokenise(char *text,
     return argc;
 }
 
-static void TerminalConsole_CommandHelp(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-static void TerminalConsole_CommandTemperature(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-static void TerminalConsole_CommandHumidity(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-
 void TerminalConsole_Task(UART_HandleTypeDef *huart)
 {
+    char *argv[TERMINAL_MAX_ARGUMENTS];
+    uint8_t argc;
+
     if (!cmd_ready)
     {
         return;
     }
 
-    cmd_ready = 0;
-
-    char *argv[TERMINAL_MAX_ARGUMENTS];
-    uint8_t argc;
+    cmd_ready = false;
 
     argc = TerminalConsole_Tokenise(cmd_buffer, argv, TERMINAL_MAX_ARGUMENTS);
 
-    if ((argc == 1U) && (strcmp(argv[0], "help") == 0))
+    if (!TerminalConsole_DispatchCommand(huart, argc, argv))
     {
-        TerminalConsole_ShowHelp(huart);
-    }
-    else if ((argc == 1U) && (strcmp(argv[0], "refresh") == 0))
-    {
-    	Dashboard_Show(huart);
-    	Dashboard_Refresh(huart);
-    }
-    else if ((argc == 1U) && (strcmp(argv[0], "temp") == 0))
-    {
-    	Dashboard_StreamTemperature(huart);
-    }
-    else if ((argc == 1U) && (strcmp(argv[0], "humid") == 0))
-    {
-    	Dashboard_StreamHumidity(huart);
-    }
-    else if ((argc == 1U) && (strcmp(argv[0], "datetime") == 0))
-    {
-        RTCService_PrintDateTime(huart);
-    }
-    else if ((argc == 3U) && (strcmp(argv[0], "setdt") == 0))
-    {
-        uint8_t year;
-        uint8_t month;
-        uint8_t day;
-        uint8_t hour;
-        uint8_t minute;
-        uint8_t second;
-
-        uint16_t full_year;
-        HAL_StatusTypeDef status;
-
-        bool format_ok = true;
-
-        size_t date_length = strlen(argv[1]);
-        size_t time_length = strlen(argv[2]);
-
-        if ((date_length != 10U) ||
-            (time_length != 8U))
-        {
-            format_ok = false;
-        }
-
-        /*
-         * Expected arguments:
-         *
-         * argv[1] = yyyy-mm-dd
-         * argv[2] = hh:mm:ss
-         */
-        if (format_ok)
-        {
-            if ((argv[1][4] != '-') ||
-                (argv[1][7] != '-') ||
-                (argv[2][2] != ':') ||
-                (argv[2][5] != ':'))
-            {
-                format_ok = false;
-            }
-        }
-
-        /*
-         * Check that each date/time field contains decimal digits.
-         */
-        if (format_ok)
-        {
-            for (uint8_t i = 0U; i < 10U; i++)
-            {
-                if ((i == 4U) || (i == 7U))
-                {
-                    continue;
-                }
-
-                if ((argv[1][i] < '0') ||
-                    (argv[1][i] > '9'))
-                {
-                    format_ok = false;
-                    break;
-                }
-            }
-        }
-
-        if (format_ok)
-        {
-            for (uint8_t i = 0U; i < 8U; i++)
-            {
-                if ((i == 2U) || (i == 5U))
-                {
-                    continue;
-                }
-
-                if ((argv[2][i] < '0') ||
-                    (argv[2][i] > '9'))
-                {
-                    format_ok = false;
-                    break;
-                }
-            }
-        }
-
-        if (!format_ok)
-        {
-            const char message[] =
-                "Bad format. Use:\r\n"
-                "setdt yyyy-mm-dd hh:mm:ss\r\n";
-
-            HAL_UART_Transmit(huart,
-                              (uint8_t *)message,
-                              strlen(message),
-                              HAL_MAX_DELAY);
-        }
-        else
-        {
-        	full_year =
-        	    (uint16_t)((argv[1][0] - '0') * 1000U) +
-        	    (uint16_t)((argv[1][1] - '0') * 100U) +
-        	    (uint16_t)((argv[1][2] - '0') * 10U) +
-        	    (uint16_t)(argv[1][3] - '0');
-
-        	year = (uint8_t)(full_year - 2000U);
-
-        	month =
-        	    (uint8_t)(((argv[1][5] - '0') * 10U) +
-        	              (argv[1][6] - '0'));
-
-        	day =
-        	    (uint8_t)(((argv[1][8] - '0') * 10U) +
-        	              (argv[1][9] - '0'));
-
-        	hour =
-        	    (uint8_t)(((argv[2][0] - '0') * 10U) +
-        	              (argv[2][1] - '0'));
-
-        	minute =
-        	    (uint8_t)(((argv[2][3] - '0') * 10U) +
-        	              (argv[2][4] - '0'));
-
-        	second =
-        	    (uint8_t)(((argv[2][6] - '0') * 10U) +
-        	              (argv[2][7] - '0'));
-
-            if ((full_year < 2000U) ||
-                (full_year > 2099U) ||
-                (month < 1U) ||
-                (month > 12U) ||
-                (day < 1U) ||
-                (day > 31U) ||
-                (hour > 23U) ||
-                (minute > 59U) ||
-                (second > 59U))
-            {
-                const char message[] =
-                    "Date or time value out of range\r\n";
-
-                HAL_UART_Transmit(huart,
-                                  (uint8_t *)message,
-                                  strlen(message),
-                                  HAL_MAX_DELAY);
-            }
-            else
-            {
-            	status = RTCService_SetDateTime(year,
-            	                                month,
-            	                                day,
-            	                                hour,
-            	                                minute,
-            	                                second);
-
-            	if (status == HAL_OK)
-            	{
-            	    const char message[] =
-            	        "Date and time updated\r\n";
-
-            	    HAL_UART_Transmit(huart,
-            	                      (uint8_t *)message,
-            	                      strlen(message),
-            	                      HAL_MAX_DELAY);
-            	}
-            	else
-            	{
-            	    const char message[] =
-            	        "Invalid calendar date or time\r\n";
-
-            	    HAL_UART_Transmit(huart,
-            	                      (uint8_t *)message,
-            	                      strlen(message),
-            	                      HAL_MAX_DELAY);
-            	}
-            }
-        }
-    }
-    else if ((argc == 2U) && (strcmp(argv[0], "eric") == 0) && (strcmp(argv[1], "baud") == 0))
-    {
-        char response[32];
-
-        ERIC_Status_t status = ERIC_QueryUartBaudRate(response, sizeof(response));
-
-        TerminalConsole_PrintEricResult(huart, status, response);
-    }
-    else if ((argc == 2U) && (strcmp(argv[0], "eric") == 0) && (strcmp(argv[1], "rate") == 0))
-    {
-        char response[32];
-
-        ERIC_Status_t status = ERIC_QueryAirDataRate(response, sizeof(response));
-
-        TerminalConsole_PrintEricResult(huart, status, response);
-    }
-    else if ((argc == 2U) && (strcmp(argv[0], "eric") == 0) && (strcmp(argv[1], "channel") == 0))
-    {
-        char response[32];
-
-        ERIC_Status_t status = ERIC_QueryChannel(response, sizeof(response));
-
-        TerminalConsole_PrintEricResult(huart, status, response);
-    }
-    else
-    {
-        const char message[] = "Unknown command\r\n";
-
-        HAL_UART_Transmit(huart,
-                          (uint8_t *)message,
-                          strlen(message),
-                          HAL_MAX_DELAY);
+        TerminalConsole_Write(huart, "Unknown command\r\n");
     }
 
     if (command_mode)
     {
-        const char prompt[] = "\r\nCommand> ";
-
-        HAL_UART_Transmit(huart,
-                          (uint8_t *)prompt,
-                          strlen(prompt),
-                          HAL_MAX_DELAY);
+        TerminalConsole_Write(huart, "\r\nCommand> ");
     }
 }
 
@@ -502,6 +301,166 @@ static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t a
     (void)argv;
 
     RTCService_PrintDateTime(huart);
+}
+
+static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    bool format_ok = true;
+
+    uint16_t year = 0U;
+    uint8_t month = 0U;
+    uint8_t day = 0U;
+    uint8_t hour = 0U;
+    uint8_t minute = 0U;
+    uint8_t second = 0U;
+
+    if (argc != 3U)
+    {
+        TerminalConsole_Write(huart, "Usage: setdt yyyy-mm-dd hh:mm:ss\r\n");
+        return;
+    }
+
+    size_t date_length = strlen(argv[1]);
+    size_t time_length = strlen(argv[2]);
+
+    if ((date_length != 10U) ||
+        (time_length != 8U))
+    {
+        format_ok = false;
+    }
+
+    if (format_ok)
+    {
+        if ((argv[1][4] != '-') ||
+            (argv[1][7] != '-') ||
+            (argv[2][2] != ':') ||
+            (argv[2][5] != ':'))
+        {
+            format_ok = false;
+        }
+    }
+
+    if (format_ok)
+    {
+        for (uint8_t index = 0U; index < 10U; index++)
+        {
+            if ((index != 4U) &&
+                (index != 7U) &&
+                ((argv[1][index] < '0') ||
+                 (argv[1][index] > '9')))
+            {
+                format_ok = false;
+                break;
+            }
+        }
+    }
+
+    if (format_ok)
+    {
+        for (uint8_t index = 0U; index < 8U; index++)
+        {
+            if ((index != 2U) &&
+                (index != 5U) &&
+                ((argv[2][index] < '0') ||
+                 (argv[2][index] > '9')))
+            {
+                format_ok = false;
+                break;
+            }
+        }
+    }
+
+    if (!format_ok)
+    {
+        TerminalConsole_Write(huart, "Bad format.\r\n");
+        return;
+    }
+
+    year =
+        ((uint16_t)(argv[1][0] - '0') * 1000U) +
+        ((uint16_t)(argv[1][1] - '0') * 100U) +
+        ((uint16_t)(argv[1][2] - '0') * 10U) +
+        ((uint16_t)(argv[1][3] - '0'));
+
+    month =
+        ((uint8_t)(argv[1][5] - '0') * 10U) +
+        ((uint8_t)(argv[1][6] - '0'));
+
+    day =
+        ((uint8_t)(argv[1][8] - '0') * 10U) +
+        ((uint8_t)(argv[1][9] - '0'));
+
+    hour =
+        ((uint8_t)(argv[2][0] - '0') * 10U) +
+        ((uint8_t)(argv[2][1] - '0'));
+
+    minute =
+        ((uint8_t)(argv[2][3] - '0') * 10U) +
+        ((uint8_t)(argv[2][4] - '0'));
+
+    second =
+        ((uint8_t)(argv[2][6] - '0') * 10U) +
+        ((uint8_t)(argv[2][7] - '0'));
+
+    if (RTCService_SetDateTime(
+            (uint8_t)(year - 2000U),
+            month,
+            day,
+            hour,
+            minute,
+            second) == HAL_OK)
+    {
+        TerminalConsole_Write(huart, "Date and time updated\r\n");
+    }
+    else
+    {
+        TerminalConsole_Write(huart, "Invalid date or time\r\n");
+    }
+}
+
+static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    char response[32];
+    ERIC_Status_t status;
+
+    if (argc != 2U)
+    {
+        TerminalConsole_Write(
+            huart,
+            "Usage: eric baud|rate|channel\r\n");
+        return;
+    }
+
+    if (strcmp(argv[1], "baud") == 0)
+    {
+        status = ERIC_QueryUartBaudRate(
+            response,
+            sizeof(response));
+    }
+    else if (strcmp(argv[1], "rate") == 0)
+    {
+        status = ERIC_QueryAirDataRate(
+            response,
+            sizeof(response));
+    }
+    else if (strcmp(argv[1], "channel") == 0)
+    {
+        status = ERIC_QueryChannel(
+            response,
+            sizeof(response));
+    }
+    else
+    {
+        TerminalConsole_Write(
+            huart,
+            "Unknown eRIC command\r\n");
+        return;
+    }
+
+    TerminalConsole_PrintEricResult(
+        huart,
+        status,
+        response);
 }
 
 void TerminalConsole_RxByte(uint8_t ch)
@@ -576,4 +535,27 @@ void TerminalConsole_RxByte(uint8_t ch)
             TerminalConsole_Echo(&ch, 1U);
         }
     }
+}
+
+static bool TerminalConsole_DispatchCommand(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    if (argc == 0U)
+    {
+        return true;
+    }
+
+    for (size_t index = 0U;
+         index < (sizeof(terminal_commands) /
+                  sizeof(terminal_commands[0]));
+         index++)
+    {
+        if (strcmp(argv[0], terminal_commands[index].name) == 0)
+        {
+            terminal_commands[index].handler(huart, argc, argv);
+
+            return true;
+        }
+    }
+
+    return false;
 }
