@@ -60,9 +60,15 @@ static const TerminalCommand_t terminal_commands[] =
 
 };
 
-static void TerminalConsole_Write(UART_HandleTypeDef *huart, const char *text)
+static void TerminalConsole_WriteString(UART_HandleTypeDef *huart, const char *text)
 {
-    HAL_UART_Transmit(huart, (uint8_t *)text, strlen(text), HAL_MAX_DELAY);
+    if ((huart == NULL) ||
+        (text == NULL))
+    {
+        return;
+    }
+
+    HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
 }
 
 static bool TerminalConsole_DispatchCommand( UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
@@ -76,39 +82,32 @@ static void TerminalConsole_Echo(const uint8_t *data, uint16_t length)
         HAL_UART_Transmit(terminal_uart, (uint8_t *)data, length, HAL_MAX_DELAY);
     }
 }
-static void TerminalConsole_PrintEricResult(
-    UART_HandleTypeDef *huart,
-    ERIC_Status_t status,
-    const char *response)
+
+static void TerminalConsole_PrintEricResult(UART_HandleTypeDef *huart, ERIC_Status_t status, const char *response)
 {
     char text[80];
 
-    if (status == ERIC_OK)
+    if ((status == ERIC_OK) && (response != NULL))
     {
-        snprintf(text,
-                 sizeof(text),
-                 "eRIC response: %s\r\n",
-                 response);
+        snprintf(text, sizeof(text), "eRIC response: %s\r\n", response);
     }
     else
     {
-        snprintf(text,
-                 sizeof(text),
-                 "eRIC error: %d\r\n",
-                 (int)status);
+        snprintf(text, sizeof(text), "eRIC error: %d\r\n", (int)status);
     }
 
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)text,
-                      strlen(text),
-                      HAL_MAX_DELAY);
+    TerminalConsole_WriteString(huart, text);
 }
 
 void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
 {
-	terminal_uart = huart;
+    terminal_uart = huart;
 
-	const char text[] =
+    ClrTerm(huart);
+    CursorHome(huart);
+
+    TerminalConsole_WriteString(
+        huart,
         "========================================\r\n"
         "         COMMAND CONSOLE\r\n"
         "========================================\r\n"
@@ -116,35 +115,23 @@ void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
         "Type 'help' for commands.\r\n"
         "Press ENTER on a blank line to return.\r\n"
         "\r\n"
-        "Command> ";
-
-    ClrTerm(huart);
-    CursorHome(huart);
-
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)text,
-                      strlen(text),
-                      HAL_MAX_DELAY);
+        "Command> ");
 }
 
 void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart)
 {
-    const char options[] =
+    TerminalConsole_WriteString(
+        huart,
         "Available commands:\r\n"
         "help\r\n"
         "refresh\r\n"
         "temp\r\n"
         "humid\r\n"
         "datetime\r\n"
-    	"eric baud\r\n"
-    	"eric rate\r\n"
-    	"eric channel\r\n"
-    	"setdt yyyy-mm-dd hh:mm:ss\r\n";
-
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)options,
-                      strlen(options),
-                      HAL_MAX_DELAY);
+        "eric baud\r\n"
+        "eric rate\r\n"
+        "eric channel\r\n"
+        "setdt yyyy-mm-dd hh:mm:ss\r\n");
 }
 
 static uint8_t TerminalConsole_Tokenise(char *text,
@@ -228,12 +215,12 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
 
     if (!TerminalConsole_DispatchCommand(huart, argc, argv))
     {
-        TerminalConsole_Write(huart, "Unknown command\r\n");
+        TerminalConsole_WriteString(huart, "Unknown command\r\n");
     }
 
     if (command_mode)
     {
-        TerminalConsole_Write(huart, "\r\nCommand> ");
+        TerminalConsole_WriteString(huart, "\r\nCommand> ");
     }
 }
 
@@ -316,7 +303,7 @@ static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_
 
     if (argc != 3U)
     {
-        TerminalConsole_Write(huart, "Usage: setdt yyyy-mm-dd hh:mm:ss\r\n");
+        TerminalConsole_WriteString(huart, "Usage: setdt yyyy-mm-dd hh:mm:ss\r\n");
         return;
     }
 
@@ -372,7 +359,7 @@ static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_
 
     if (!format_ok)
     {
-        TerminalConsole_Write(huart, "Bad format.\r\n");
+        TerminalConsole_WriteString(huart, "Bad format.\r\n");
         return;
     }
 
@@ -410,11 +397,11 @@ static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_
             minute,
             second) == HAL_OK)
     {
-        TerminalConsole_Write(huart, "Date and time updated\r\n");
+        TerminalConsole_WriteString(huart, "Date and time updated\r\n");
     }
     else
     {
-        TerminalConsole_Write(huart, "Invalid date or time\r\n");
+        TerminalConsole_WriteString(huart, "Invalid date or time\r\n");
     }
 }
 
@@ -425,9 +412,7 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
 
     if (argc != 2U)
     {
-        TerminalConsole_Write(
-            huart,
-            "Usage: eric baud|rate|channel\r\n");
+        TerminalConsole_WriteString(huart, "Usage: eric baud|rate|channel\r\n");
         return;
     }
 
@@ -451,9 +436,7 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
     }
     else
     {
-        TerminalConsole_Write(
-            huart,
-            "Unknown eRIC command\r\n");
+        TerminalConsole_WriteString(huart, "Unknown eRIC command\r\n");
         return;
     }
 
