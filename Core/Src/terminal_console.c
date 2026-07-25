@@ -180,6 +180,14 @@ static uint8_t TerminalConsole_Tokenise(char *text,
     return argc;
 }
 
+static void TerminalConsole_CommandHelp(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandTemperature(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandHumidity(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+
 void TerminalConsole_Task(UART_HandleTypeDef *huart)
 {
     if (!cmd_ready)
@@ -453,6 +461,47 @@ void TerminalConsole_ClearRedraws(void)
 {
     redraw_dashboard = 0;
     redraw_command_screen = 0;
+}
+
+static void TerminalConsole_CommandHelp(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    TerminalConsole_ShowHelp(huart);
+}
+
+static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    Dashboard_Show(huart);
+    Dashboard_Refresh(huart);
+}
+
+static void TerminalConsole_CommandTemperature(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    Dashboard_StreamTemperature(huart);
+}
+
+static void TerminalConsole_CommandHumidity(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    Dashboard_StreamHumidity(huart);
+}
+
+static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    RTCService_PrintDateTime(huart);
 }
 
 void TerminalConsole_RxByte(uint8_t ch)
