@@ -115,33 +115,12 @@ void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart)
 
 void TerminalConsole_Task(UART_HandleTypeDef *huart)
 {
-    char buffer[80];
-
     if (!cmd_ready)
     {
         return;
     }
 
     cmd_ready = 0;
-
-    snprintf(buffer,
-             sizeof(buffer),
-             "Command=[%s]\r\n",
-             cmd_buffer);
-
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)buffer,
-                      strlen(buffer),
-                      HAL_MAX_DELAY);
-
-    {
-        const char message[] = "Executing command...\r\n";
-
-        HAL_UART_Transmit(huart,
-                          (uint8_t *)message,
-                          strlen(message),
-                          HAL_MAX_DELAY);
-    }
 
     if (strcmp(cmd_buffer, "help") == 0)
     {
@@ -410,9 +389,7 @@ void TerminalConsole_RxByte(uint8_t ch)
     {
         if (command_mode == 0U)
         {
-            /*
-             * Enter command mode.
-             */
+            /* Enter command mode. */
             command_mode = 1U;
             cmd_index = 0U;
             cmd_buffer[0] = '\0';
@@ -421,28 +398,19 @@ void TerminalConsole_RxByte(uint8_t ch)
         }
         else
         {
-            /*
-             * Finish the current command line.
-             */
+            /* Finish the current command line. */
             cmd_buffer[cmd_index] = '\0';
 
             if (cmd_index == 0U)
             {
-                /*
-                 * Blank command: leave command mode and return
-                 * to the dashboard.
-                 */
+                /* Blank command: leave command mode and return to the dashboard. */
                 command_mode = 0U;
                 redraw_dashboard = 1U;
             }
             else
             {
-                /*
-                 * A complete command is ready for the main loop.
-                 */
-            	TerminalConsole_Echo(
-            	    (const uint8_t *)"\r\n",
-            	    2U);
+                /* A complete command is ready for the main loop. */
+            	TerminalConsole_Echo((const uint8_t *)"\r\n", 2U);
             	cmd_ready = 1U;
             }
 
@@ -451,46 +419,33 @@ void TerminalConsole_RxByte(uint8_t ch)
     }
     else if (ch == '\n')
     {
-        /*
-         * Ignore LF. This allows terminals configured for CR+LF
-         * to work without entering an extra blank command.
-         */
+        /* Ignore LF. This allows terminals configured for CR+LF to work without entering an extra blank command. */
     }
     else if (ch == 0x1BU)
     {
-        /*
-         * Escape abandons the current command line.
-         */
+        /* Escape abandons the current command line. */
         if (command_mode != 0U)
         {
             cmd_index = 0U;
             cmd_buffer[0] = '\0';
 
-            TerminalConsole_Echo(
-                (const uint8_t *)"\r\nCommand> ",
-                11U);
+            TerminalConsole_Echo((const uint8_t *)"\r\nCommand> ", 11U);
         }
     }
     else if ((ch == '\b') || (ch == 0x7FU))
     {
-        /*
-         * Remove one character, but never erase the prompt.
-         */
+        /* Remove one character, but never erase the prompt. */
         if ((command_mode != 0U) && (cmd_index > 0U))
         {
             cmd_index--;
             cmd_buffer[cmd_index] = '\0';
 
-            TerminalConsole_Echo(
-                (const uint8_t *)"\b \b",
-                3U);
+            TerminalConsole_Echo((const uint8_t *)"\b \b", 3U);
         }
     }
     else if (command_mode != 0U)
     {
-        /*
-         * Store and echo a normal character.
-         */
+        /* Store and echo a normal character. */
         if (cmd_index < (CMD_BUFFER_SIZE - 1U))
         {
             cmd_buffer[cmd_index] = (char)ch;
