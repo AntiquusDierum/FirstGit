@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define TERMINAL_MAX_ARGUMENTS  8U
+
 /*
  * These variables are still defined in main.c.
  *
@@ -113,6 +115,71 @@ void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart)
                       HAL_MAX_DELAY);
 }
 
+static uint8_t TerminalConsole_Tokenise(char *text,
+                                       char *argv[],
+                                       uint8_t argv_size)
+{
+    uint8_t argc = 0U;
+    char *current = text;
+
+    if ((text == NULL) ||
+        (argv == NULL) ||
+        (argv_size == 0U))
+    {
+        return 0U;
+    }
+
+    while (*current != '\0')
+    {
+        /*
+         * Skip spaces between arguments.
+         */
+        while (*current == ' ')
+        {
+            current++;
+        }
+
+        if (*current == '\0')
+        {
+            break;
+        }
+
+        /*
+         * Stop if the argument array is full.
+         */
+        if (argc >= argv_size)
+        {
+            break;
+        }
+
+        /*
+         * Record the beginning of this argument.
+         */
+        argv[argc] = current;
+        argc++;
+
+        /*
+         * Find the end of this argument.
+         */
+        while ((*current != '\0') &&
+               (*current != ' '))
+        {
+            current++;
+        }
+
+        /*
+         * Replace the separator with a string terminator.
+         */
+        if (*current == ' ')
+        {
+            *current = '\0';
+            current++;
+        }
+    }
+
+    return argc;
+}
+
 void TerminalConsole_Task(UART_HandleTypeDef *huart)
 {
     if (!cmd_ready)
@@ -122,28 +189,33 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
 
     cmd_ready = 0;
 
-    if (strcmp(cmd_buffer, "help") == 0)
+    char *argv[TERMINAL_MAX_ARGUMENTS];
+    uint8_t argc;
+
+    argc = TerminalConsole_Tokenise(cmd_buffer, argv, TERMINAL_MAX_ARGUMENTS);
+
+    if ((argc == 1U) && (strcmp(argv[0], "help") == 0))
     {
         TerminalConsole_ShowHelp(huart);
     }
-    else if (strcmp(cmd_buffer, "refresh") == 0)
+    else if ((argc == 1U) && (strcmp(argv[0], "refresh") == 0))
     {
     	Dashboard_Show(huart);
     	Dashboard_Refresh(huart);
     }
-    else if (strcmp(cmd_buffer, "temp") == 0)
+    else if ((argc == 1U) && (strcmp(argv[0], "temp") == 0))
     {
     	Dashboard_StreamTemperature(huart);
     }
-    else if (strcmp(cmd_buffer, "humid") == 0)
+    else if ((argc == 1U) && (strcmp(argv[0], "humid") == 0))
     {
     	Dashboard_StreamHumidity(huart);
     }
-    else if (strcmp(cmd_buffer, "datetime") == 0)
+    else if ((argc == 1U) && (strcmp(argv[0], "datetime") == 0))
     {
         RTCService_PrintDateTime(huart);
     }
-    else if (strncmp(cmd_buffer, "setdt ", 6U) == 0)
+    else if ((argc == 3U) && (strcmp(argv[0], "setdt") == 0))
     {
         uint8_t year;
         uint8_t month;
@@ -156,30 +228,28 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
         HAL_StatusTypeDef status;
 
         bool format_ok = true;
-        size_t length = strlen(cmd_buffer);
 
-        /*
-         * Expected format:
-         *
-         * setdt 2026-07-17 18:33:00
-         *
-         * Character positions:
-         *
-         *  0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-         *  s e t d t   2 0 2 6  -  0  7  -  1  7     1  8  :  3  3  :  0  0
-         */
-        if (length != 25U)
+        size_t date_length = strlen(argv[1]);
+        size_t time_length = strlen(argv[2]);
+
+        if ((date_length != 10U) ||
+            (time_length != 8U))
         {
             format_ok = false;
         }
 
+        /*
+         * Expected arguments:
+         *
+         * argv[1] = yyyy-mm-dd
+         * argv[2] = hh:mm:ss
+         */
         if (format_ok)
         {
-            if ((cmd_buffer[10] != '-') ||
-                (cmd_buffer[13] != '-') ||
-                (cmd_buffer[16] != ' ') ||
-                (cmd_buffer[19] != ':') ||
-                (cmd_buffer[22] != ':'))
+            if ((argv[1][4] != '-') ||
+                (argv[1][7] != '-') ||
+                (argv[2][2] != ':') ||
+                (argv[2][5] != ':'))
             {
                 format_ok = false;
             }
@@ -190,19 +260,33 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
          */
         if (format_ok)
         {
-            for (uint8_t i = 6U; i < 25U; i++)
+            for (uint8_t i = 0U; i < 10U; i++)
             {
-                if ((i == 10U) ||
-                    (i == 13U) ||
-                    (i == 16U) ||
-                    (i == 19U) ||
-                    (i == 22U))
+                if ((i == 4U) || (i == 7U))
                 {
                     continue;
                 }
 
-                if ((cmd_buffer[i] < '0') ||
-                    (cmd_buffer[i] > '9'))
+                if ((argv[1][i] < '0') ||
+                    (argv[1][i] > '9'))
+                {
+                    format_ok = false;
+                    break;
+                }
+            }
+        }
+
+        if (format_ok)
+        {
+            for (uint8_t i = 0U; i < 8U; i++)
+            {
+                if ((i == 2U) || (i == 5U))
+                {
+                    continue;
+                }
+
+                if ((argv[2][i] < '0') ||
+                    (argv[2][i] > '9'))
                 {
                     format_ok = false;
                     break;
@@ -223,33 +307,33 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
         }
         else
         {
-            full_year =
-                (uint16_t)((cmd_buffer[6] - '0') * 1000U) +
-                (uint16_t)((cmd_buffer[7] - '0') * 100U) +
-                (uint16_t)((cmd_buffer[8] - '0') * 10U) +
-                (uint16_t)(cmd_buffer[9] - '0');
+        	full_year =
+        	    (uint16_t)((argv[1][0] - '0') * 1000U) +
+        	    (uint16_t)((argv[1][1] - '0') * 100U) +
+        	    (uint16_t)((argv[1][2] - '0') * 10U) +
+        	    (uint16_t)(argv[1][3] - '0');
 
-            year = (uint8_t)(full_year - 2000U);
+        	year = (uint8_t)(full_year - 2000U);
 
-            month =
-                (uint8_t)(((cmd_buffer[11] - '0') * 10U) +
-                          (cmd_buffer[12] - '0'));
+        	month =
+        	    (uint8_t)(((argv[1][5] - '0') * 10U) +
+        	              (argv[1][6] - '0'));
 
-            day =
-                (uint8_t)(((cmd_buffer[14] - '0') * 10U) +
-                          (cmd_buffer[15] - '0'));
+        	day =
+        	    (uint8_t)(((argv[1][8] - '0') * 10U) +
+        	              (argv[1][9] - '0'));
 
-            hour =
-                (uint8_t)(((cmd_buffer[17] - '0') * 10U) +
-                          (cmd_buffer[18] - '0'));
+        	hour =
+        	    (uint8_t)(((argv[2][0] - '0') * 10U) +
+        	              (argv[2][1] - '0'));
 
-            minute =
-                (uint8_t)(((cmd_buffer[20] - '0') * 10U) +
-                          (cmd_buffer[21] - '0'));
+        	minute =
+        	    (uint8_t)(((argv[2][3] - '0') * 10U) +
+        	              (argv[2][4] - '0'));
 
-            second =
-                (uint8_t)(((cmd_buffer[23] - '0') * 10U) +
-                          (cmd_buffer[24] - '0'));
+        	second =
+        	    (uint8_t)(((argv[2][6] - '0') * 10U) +
+        	              (argv[2][7] - '0'));
 
             if ((full_year < 2000U) ||
                 (full_year > 2099U) ||
@@ -301,41 +385,29 @@ void TerminalConsole_Task(UART_HandleTypeDef *huart)
             }
         }
     }
-    else if (strcmp(cmd_buffer, "eric baud") == 0)
+    else if ((argc == 2U) && (strcmp(argv[0], "eric") == 0) && (strcmp(argv[1], "baud") == 0))
     {
         char response[32];
 
-        ERIC_Status_t status =
-            ERIC_QueryUartBaudRate(response,
-                                   sizeof(response));
+        ERIC_Status_t status = ERIC_QueryUartBaudRate(response, sizeof(response));
 
-        TerminalConsole_PrintEricResult(huart,
-                                        status,
-                                        response);
+        TerminalConsole_PrintEricResult(huart, status, response);
     }
-    else if (strcmp(cmd_buffer, "eric rate") == 0)
+    else if ((argc == 2U) && (strcmp(argv[0], "eric") == 0) && (strcmp(argv[1], "rate") == 0))
     {
         char response[32];
 
-        ERIC_Status_t status =
-            ERIC_QueryAirDataRate(response,
-                                  sizeof(response));
+        ERIC_Status_t status = ERIC_QueryAirDataRate(response, sizeof(response));
 
-        TerminalConsole_PrintEricResult(huart,
-                                        status,
-                                        response);
+        TerminalConsole_PrintEricResult(huart, status, response);
     }
-    else if (strcmp(cmd_buffer, "eric channel") == 0)
+    else if ((argc == 2U) && (strcmp(argv[0], "eric") == 0) && (strcmp(argv[1], "channel") == 0))
     {
         char response[32];
 
-        ERIC_Status_t status =
-            ERIC_QueryChannel(response,
-                              sizeof(response));
+        ERIC_Status_t status = ERIC_QueryChannel(response, sizeof(response));
 
-        TerminalConsole_PrintEricResult(huart,
-                                        status,
-                                        response);
+        TerminalConsole_PrintEricResult(huart, status, response);
     }
     else
     {
