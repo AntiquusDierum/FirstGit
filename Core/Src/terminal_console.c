@@ -5,11 +5,11 @@
  *      Author: Alan & Dione
  */
 
+#include <project_info.h>
 #include "terminal_console.h"
 #include "dashboard.h"
 #include "rtc_service.h"
 #include "eric_lora.h"
-
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -48,6 +48,8 @@ static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t a
 static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandVersion(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static void TerminalConsole_CommandUptime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 
 static const TerminalCommand_t terminal_commands[] =
 {
@@ -78,6 +80,14 @@ static const TerminalCommand_t terminal_commands[] =
     {
         "temp",     TerminalConsole_CommandTemperature,
         "Stream temperature"
+    },
+	{
+	    "uptime",   TerminalConsole_CommandUptime,
+	    "Display system uptime"
+	},
+    {
+        "version",  TerminalConsole_CommandVersion,
+        "Display firmware information"
     }
 };
 
@@ -587,4 +597,76 @@ static bool TerminalConsole_DispatchCommand(UART_HandleTypeDef *huart, uint8_t a
     }
 
     return false;
+}
+
+static void TerminalConsole_CommandVersion(
+    UART_HandleTypeDef *huart,
+    uint8_t argc,
+    char *argv[])
+{
+    char text[96];
+
+    (void)argv;
+
+    if (argc != 1U)
+    {
+        TerminalConsole_WriteString(huart, "Usage: version\r\n");
+        return;
+    }
+
+    snprintf(text, sizeof(text), "%s\r\n", FW_NAME);
+
+    TerminalConsole_WriteString(huart, text);
+
+    snprintf(text, sizeof(text), "Version : %s\r\n", FW_VERSION);
+
+    TerminalConsole_WriteString(huart, text);
+
+    snprintf(text, sizeof(text), "Board   : %s\r\n", FW_BOARD);
+
+    TerminalConsole_WriteString(huart, text);
+
+    snprintf(text, sizeof(text), "Built   : %s %s\r\n", __DATE__, __TIME__);
+
+    TerminalConsole_WriteString(huart, text);
+}
+
+static void TerminalConsole_CommandUptime(
+    UART_HandleTypeDef *huart,
+    uint8_t argc,
+    char *argv[])
+{
+    uint32_t total_seconds;
+    uint32_t days;
+    uint32_t hours;
+    uint32_t minutes;
+    uint32_t seconds;
+    char text[96];
+
+    (void)argv;
+
+    if (argc != 1U)
+    {
+        TerminalConsole_WriteString(huart, "Usage: uptime\r\n");
+        return;
+    }
+
+    total_seconds = HAL_GetTick() / 1000U;
+
+    days = total_seconds / 86400U;
+    total_seconds %= 86400U;
+
+    hours = total_seconds / 3600U;
+    total_seconds %= 3600U;
+
+    minutes = total_seconds / 60U;
+    seconds = total_seconds % 60U;
+
+    snprintf(text, sizeof(text), "Uptime  : %lu days, %02lu:%02lu:%02lu\r\n",
+        (unsigned long)days,
+        (unsigned long)hours,
+        (unsigned long)minutes,
+        (unsigned long)seconds);
+
+    TerminalConsole_WriteString(huart, text);
 }
