@@ -2,7 +2,7 @@
  * terminal_console.c
  *
  *  Created on: 18 Jul 2026
- *      Author: alan
+ *      Author: Alan & Dione
  */
 
 #include "terminal_console.h"
@@ -37,6 +37,7 @@ typedef struct
 {
     const char *name;
     TerminalCommandHandler_t handler;
+    const char *usage;
 } TerminalCommand_t;
 
 static void TerminalConsole_CommandHelp(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
@@ -50,15 +51,38 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
 
 static const TerminalCommand_t terminal_commands[] =
 {
-    { "help",     TerminalConsole_CommandHelp },
-    { "refresh",  TerminalConsole_CommandRefresh },
-    { "temp",     TerminalConsole_CommandTemperature },
-    { "humid",    TerminalConsole_CommandHumidity },
-    { "datetime", TerminalConsole_CommandDateTime },
-    { "setdt",    TerminalConsole_CommandSetDateTime },
-	{ "eric",     TerminalConsole_CommandEric }
-
+    {
+        "datetime", TerminalConsole_CommandDateTime,
+        "Show RTC date and time"
+    },
+    {
+        "eric",     TerminalConsole_CommandEric,
+        "eric baud|rate|channel"
+    },
+    {
+        "help",     TerminalConsole_CommandHelp,
+        "Display available commands"
+    },
+    {
+        "humid",    TerminalConsole_CommandHumidity,
+        "Stream relative humidity"
+    },
+    {
+        "refresh",  TerminalConsole_CommandRefresh,
+        "Refresh the dashboard"
+    },
+    {
+        "setdt",    TerminalConsole_CommandSetDateTime,
+        "setdt yyyy-mm-dd hh:mm:ss"
+    },
+    {
+        "temp",     TerminalConsole_CommandTemperature,
+        "Stream temperature"
+    }
 };
+
+#define TERMINAL_COMMAND_COUNT \
+    (sizeof(terminal_commands) / sizeof(terminal_commands[0]))
 
 static void TerminalConsole_WriteString(UART_HandleTypeDef *huart, const char *text)
 {
@@ -120,18 +144,18 @@ void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
 
 void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart)
 {
-    TerminalConsole_WriteString(
-        huart,
-        "Available commands:\r\n"
-        "help\r\n"
-        "refresh\r\n"
-        "temp\r\n"
-        "humid\r\n"
-        "datetime\r\n"
-        "eric baud\r\n"
-        "eric rate\r\n"
-        "eric channel\r\n"
-        "setdt yyyy-mm-dd hh:mm:ss\r\n");
+    char text[96];
+
+    TerminalConsole_WriteString(huart,"Available commands:\r\n");
+
+    for (size_t index = 0U; index < TERMINAL_COMMAND_COUNT; index++)
+    {
+        snprintf(text,sizeof(text),"%-10s %s\r\n",
+            terminal_commands[index].name,
+            terminal_commands[index].usage);
+
+        TerminalConsole_WriteString(huart,text);
+    }
 }
 
 static uint8_t TerminalConsole_Tokenise(char *text,
@@ -251,16 +275,26 @@ void TerminalConsole_ClearRedraws(void)
 
 static void TerminalConsole_CommandHelp(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
 {
-    (void)argc;
     (void)argv;
+
+    if (argc != 1U)
+    {
+        TerminalConsole_WriteString(huart, "Usage: help\r\n");
+        return;
+    }
 
     TerminalConsole_ShowHelp(huart);
 }
 
 static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
 {
-    (void)argc;
     (void)argv;
+
+    if (argc != 1U)
+    {
+        TerminalConsole_WriteString(huart, "Usage: refresh\r\n");
+        return;
+    }
 
     Dashboard_Show(huart);
     Dashboard_Refresh(huart);
@@ -268,24 +302,39 @@ static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t ar
 
 static void TerminalConsole_CommandTemperature(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
 {
-    (void)argc;
     (void)argv;
+
+    if (argc != 1U)
+    {
+        TerminalConsole_WriteString(huart, "Usage: temp\r\n");
+        return;
+    }
 
     Dashboard_StreamTemperature(huart);
 }
 
 static void TerminalConsole_CommandHumidity(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
 {
-    (void)argc;
     (void)argv;
+
+    if (argc != 1U)
+    {
+        TerminalConsole_WriteString(huart, "Usage: humid\r\n");
+        return;
+    }
 
     Dashboard_StreamHumidity(huart);
 }
 
 static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
 {
-    (void)argc;
     (void)argv;
+
+    if (argc != 1U)
+    {
+        TerminalConsole_WriteString(huart, "Usage: datetime\r\n");
+        return;
+    }
 
     RTCService_PrintDateTime(huart);
 }
@@ -527,10 +576,7 @@ static bool TerminalConsole_DispatchCommand(UART_HandleTypeDef *huart, uint8_t a
         return true;
     }
 
-    for (size_t index = 0U;
-         index < (sizeof(terminal_commands) /
-                  sizeof(terminal_commands[0]));
-         index++)
+    for (size_t index = 0U; index < TERMINAL_COMMAND_COUNT; index++)
     {
         if (strcmp(argv[0], terminal_commands[index].name) == 0)
         {
