@@ -290,7 +290,7 @@ void Dashboard_DisplayWaterGate(UART_HandleTypeDef *huart)
     char value_str[128] = "";
 
     sprintf(value_str,
-            "%u us",
+            "%u µs",
             (unsigned int)dashboard_water_gate_us);
 
     DrwCellAt(RIGHT_COL, 9, name_str, value_str, huart);

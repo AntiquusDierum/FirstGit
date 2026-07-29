@@ -59,9 +59,6 @@ uint32_t adcBuffer[ADC_CHANS];
 
 uint8_t debug_uart_rx;
 uint8_t eric_uart_rx;
-
-uint32_t water_count = 0;
-uint32_t water_frequency_hz = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -212,8 +209,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  __HAL_TIM_SET_COUNTER(&htim4, 0);
-
 	  uint16_t time_start;
 	  uint16_t time_end;
 	  uint16_t count_start;
