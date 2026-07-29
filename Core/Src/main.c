@@ -60,6 +60,8 @@ uint32_t adcBuffer[ADC_CHANS];
 
 uint8_t debug_uart_rx;
 uint8_t eric_uart_rx;
+
+uint32_t waterSensorLastUpdate = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -212,14 +214,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (WaterSensor_Measure(&water_measurement) == HAL_OK)
+	  if ((HAL_GetTick() - waterSensorLastUpdate) >= WATER_SENSOR_UPDATE_PERIOD_MS)
 	  {
-	      Dashboard_SetWaterValues(
-	          water_measurement.count,
-	          water_measurement.gate_us,
-	          water_measurement.frequency_hz);
-	  }
+	      waterSensorLastUpdate = HAL_GetTick();
 
+	      if (WaterSensor_Measure(&water_measurement) == HAL_OK)
+	      {
+	          Dashboard_SetWaterValues(
+	              water_measurement.count,
+	              water_measurement.gate_us,
+	              water_measurement.frequency_hz);
+	      }
+	  }
 	  if (TerminalConsole_RedrawCommandScreen())
 	  {
 	      TerminalConsole_ShowScreen(debug_uart);

@@ -15,6 +15,8 @@ extern "C" {
 #include "stm32l1xx_hal.h"
 #include <stdint.h>
 
+#define WATER_SENSOR_UPDATE_PERIOD_MS    250U
+
 typedef struct
 {
     uint16_t count;
