@@ -34,6 +34,7 @@
 #include "terminal_console.h"
 #include "dashboard.h"
 #include "sht25.h"
+#include "water_sensor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -115,7 +116,7 @@ int main(void)
   uint32_t lastSecond = 0xFFFFFFFF;
   uint32_t lastMinute = 0xFFFFFFFF;
   ERIC_Status_t status;
-
+  WaterSensor_Measurement_t water_measurement;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -146,8 +147,10 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim2);
-  HAL_TIM_Base_Start(&htim4);
+  if (WaterSensor_Init(&htim2, &htim4) != HAL_OK)
+  {
+      Error_Handler();
+  }
   HAL_UART_Receive_IT(debug_uart, &debug_uart_rx, 1);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
@@ -209,45 +212,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  uint16_t time_start;
-	  uint16_t time_end;
-	  uint16_t count_start;
-	  uint16_t count_end;
-
-	  uint16_t water_gate_us;
-	  uint16_t water_count;
-	  uint32_t water_frequency_hz;
-
-	  time_start = (uint16_t)__HAL_TIM_GET_COUNTER(&htim2);
-	  count_start = (uint16_t)__HAL_TIM_GET_COUNTER(&htim4);
-
-	  /* Wait until at least 20,000 microseconds have elapsed. */
-	  do
+	  if (WaterSensor_Measure(&water_measurement) == HAL_OK)
 	  {
-	      time_end = (uint16_t)__HAL_TIM_GET_COUNTER(&htim2);
+	      Dashboard_SetWaterValues(
+	          water_measurement.count,
+	          water_measurement.gate_us,
+	          water_measurement.frequency_hz);
 	  }
-	  while ((uint16_t)(time_end - time_start) < 20000U);
-
-	  /*
-	   * Read TIM4 after the TIM2 gate has expired.
-	   */
-	  count_end = (uint16_t)__HAL_TIM_GET_COUNTER(&htim4);
-
-	  /*
-	   * Unsigned 16-bit subtraction automatically handles
-	   * one counter rollover.
-	   */
-	  water_gate_us = (uint16_t)(time_end - time_start);
-	  water_count = (uint16_t)(count_end - count_start);
-
-	  /*
-	   * Calculate frequency from the actual elapsed time.
-	   */
-	  water_frequency_hz =
-	      (uint32_t)(((uint64_t)water_count * 1000000ULL) /
-	                 water_gate_us);
-
-	  Dashboard_SetWaterValues(water_count, water_gate_us, water_frequency_hz);
 
 	  if (TerminalConsole_RedrawCommandScreen())
 	  {
