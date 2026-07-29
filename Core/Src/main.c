@@ -59,6 +59,9 @@ uint32_t adcBuffer[ADC_CHANS];
 
 uint8_t debug_uart_rx;
 uint8_t eric_uart_rx;
+
+uint32_t water_count = 0;
+uint32_t water_frequency_hz = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -143,8 +146,11 @@ int main(void)
   MX_TIM6_Init();
   MX_UART5_Init();
   MX_RTC_Init();
+  MX_TIM4_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim6);
+  HAL_TIM_Base_Start(&htim2);
+  HAL_TIM_Base_Start(&htim4);
   HAL_UART_Receive_IT(debug_uart, &debug_uart_rx, 1);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
@@ -206,6 +212,48 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  __HAL_TIM_SET_COUNTER(&htim4, 0);
+
+	  uint16_t time_start;
+	  uint16_t time_end;
+	  uint16_t count_start;
+	  uint16_t count_end;
+
+	  uint16_t water_gate_us;
+	  uint16_t water_count;
+	  uint32_t water_frequency_hz;
+
+	  time_start = (uint16_t)__HAL_TIM_GET_COUNTER(&htim2);
+	  count_start = (uint16_t)__HAL_TIM_GET_COUNTER(&htim4);
+
+	  /* Wait until at least 20,000 microseconds have elapsed. */
+	  do
+	  {
+	      time_end = (uint16_t)__HAL_TIM_GET_COUNTER(&htim2);
+	  }
+	  while ((uint16_t)(time_end - time_start) < 20000U);
+
+	  /*
+	   * Read TIM4 after the TIM2 gate has expired.
+	   */
+	  count_end = (uint16_t)__HAL_TIM_GET_COUNTER(&htim4);
+
+	  /*
+	   * Unsigned 16-bit subtraction automatically handles
+	   * one counter rollover.
+	   */
+	  water_gate_us = (uint16_t)(time_end - time_start);
+	  water_count = (uint16_t)(count_end - count_start);
+
+	  /*
+	   * Calculate frequency from the actual elapsed time.
+	   */
+	  water_frequency_hz =
+	      (uint32_t)(((uint64_t)water_count * 1000000ULL) /
+	                 water_gate_us);
+
+	  Dashboard_SetWaterValues(water_count, water_gate_us, water_frequency_hz);
+
 	  if (TerminalConsole_RedrawCommandScreen())
 	  {
 	      TerminalConsole_ShowScreen(debug_uart);

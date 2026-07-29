@@ -28,6 +28,11 @@ void Dashboard_DisplayLoRaCurrent(UART_HandleTypeDef *huart);
 void Dashboard_DisplayLoRaEnable(UART_HandleTypeDef *huart);
 void Dashboard_DisplayHeartbeat(UART_HandleTypeDef *huart);
 
+void Dashboard_SetWaterValues(uint16_t count, uint16_t gate_us, uint32_t frequency_hz);
+void Dashboard_DisplayWaterCount(UART_HandleTypeDef *huart);
+void Dashboard_DisplayWaterGate(UART_HandleTypeDef *huart);
+void Dashboard_DisplayWaterFrequency(UART_HandleTypeDef *huart);
+
 void Dashboard_StreamTemperature(UART_HandleTypeDef *huart);
 void Dashboard_StreamHumidity(UART_HandleTypeDef *huart);
 
