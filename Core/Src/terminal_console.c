@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include "main.h"
 
 #define TERMINAL_MAX_ARGUMENTS  8U
 
@@ -57,10 +58,10 @@ static const TerminalCommand_t terminal_commands[] =
         "datetime", TerminalConsole_CommandDateTime,
         "Show RTC date and time"
     },
-    {
-        "eric",     TerminalConsole_CommandEric,
-        "eric baud|rate|channel"
-    },
+	{
+	    "eric",     TerminalConsole_CommandEric,
+	    "eric on|off|status|baud|rate|channel"
+	},
     {
         "help",     TerminalConsole_CommandHelp,
         "Display available commands"
@@ -471,38 +472,100 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
 
     if (argc != 2U)
     {
-        TerminalConsole_WriteString(huart, "Usage: eric baud|rate|channel\r\n");
+        TerminalConsole_WriteString(
+            huart,
+            "Usage: eric on|off|status|baud|rate|channel\r\n");
         return;
     }
 
-    if (strcmp(argv[1], "baud") == 0)
+    if (strcmp(argv[1], "on") == 0)
+    {
+        HAL_GPIO_WritePin(
+            en_LoRa_GPIO_Port,
+            en_LoRa_Pin,
+            GPIO_PIN_SET);
+
+        /*
+         * Allow the module's regulator and eRIC4 firmware
+         * time to start before another command is issued.
+         */
+        HAL_Delay(500U);
+
+        TerminalConsole_WriteString(
+            huart,
+            "eRIC radio switched on\r\n");
+    }
+    else if (strcmp(argv[1], "off") == 0)
+    {
+        HAL_GPIO_WritePin(
+            en_LoRa_GPIO_Port,
+            en_LoRa_Pin,
+            GPIO_PIN_RESET);
+
+        TerminalConsole_WriteString(
+            huart,
+            "eRIC radio switched off\r\n");
+    }
+    else if (strcmp(argv[1], "status") == 0)
+    {
+        GPIO_PinState pin_state;
+
+        pin_state = HAL_GPIO_ReadPin(
+            en_LoRa_GPIO_Port,
+            en_LoRa_Pin);
+
+        if (pin_state == GPIO_PIN_SET)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "eRIC radio is on\r\n");
+        }
+        else
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "eRIC radio is off\r\n");
+        }
+    }
+    else if (strcmp(argv[1], "baud") == 0)
     {
         status = ERIC_QueryUartBaudRate(
             response,
             sizeof(response));
+
+        TerminalConsole_PrintEricResult(
+            huart,
+            status,
+            response);
     }
     else if (strcmp(argv[1], "rate") == 0)
     {
         status = ERIC_QueryAirDataRate(
             response,
             sizeof(response));
+
+        TerminalConsole_PrintEricResult(
+            huart,
+            status,
+            response);
     }
     else if (strcmp(argv[1], "channel") == 0)
     {
         status = ERIC_QueryChannel(
             response,
             sizeof(response));
+
+        TerminalConsole_PrintEricResult(
+            huart,
+            status,
+            response);
     }
     else
     {
-        TerminalConsole_WriteString(huart, "Unknown eRIC command\r\n");
-        return;
+        TerminalConsole_WriteString(
+            huart,
+            "Unknown eRIC command\r\n");
     }
-
-    TerminalConsole_PrintEricResult(
-        huart,
-        status,
-        response);
 }
 
 void TerminalConsole_RxByte(uint8_t ch)
