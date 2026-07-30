@@ -182,56 +182,21 @@ void Dashboard_DisplayLoRaEnable(UART_HandleTypeDef * huart) {
 }
 void Dashboard_DisplayEricBaud(UART_HandleTypeDef *huart)
 {
-    const ERIC_Settings_t *settings;
-    char name_str[40] = "eRIC Baud Rate:\0";
-    char value_str[40];
+    const ERIC_Settings_t *settings = ERIC_GetSettings();
 
-    settings = ERIC_GetSettings();
-
-    snprintf(value_str, sizeof(value_str), "%-16s", settings->uart_baud);
-
-    /*
-     * Replace this with the appropriate dashboard cursor position.
-     */
-//    CursorPosition(huart, ERIC_BAUD_ROW, ERIC_VALUE_COLUMN);
-
-//    HAL_UART_Transmit(huart, (uint8_t *)value_str, (uint16_t)strlen(value_str), HAL_MAX_DELAY);
-
-    DrwCellAt(LEFT_COL, 9, name_str, value_str, huart);
+    DrwCellAt(LEFT_COL,9,"eRIC Baud Rate:", settings->uart_baud, huart);
 }
 void Dashboard_DisplayEricAirRate(UART_HandleTypeDef *huart)
 {
-    const ERIC_Settings_t *settings;
-    char name_str[40] = "eRIC Air Rate:\0";
-    char value_str[40];
-//    char text[40];
+    const ERIC_Settings_t *settings = ERIC_GetSettings();
 
-    settings = ERIC_GetSettings();
-
-    snprintf(value_str, sizeof(value_str), "%-16s", settings->air_data_rate);
-
-//    CursorPosition(huart, ERIC_AIR_RATE_ROW, ERIC_VALUE_COLUMN);
-
-//    HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
-
-    DrwCellAt(LEFT_COL, 10, name_str, value_str, huart);
+    DrwCellAt(LEFT_COL, 10,"eRIC Air Rate:",settings->air_data_rate,huart);
 }
 void Dashboard_DisplayEricChannel(UART_HandleTypeDef *huart)
 {
-    const ERIC_Settings_t *settings;
-    char name_str[40] = "eRIC Channel:\0";
-    char value_str[40];
-//    char text[40];
+    const ERIC_Settings_t *settings = ERIC_GetSettings();
 
-    settings = ERIC_GetSettings();
-
-    snprintf(value_str, sizeof(value_str), "%-16s", settings->channel);
-
-//    CursorPosition(huart, ERIC_CHANNEL_ROW, ERIC_VALUE_COLUMN);
-
-//    HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
-
-    DrwCellAt(LEFT_COL, 11, name_str, value_str, huart);
+    DrwCellAt(LEFT_COL,11,"eRIC Channel:",settings->channel,huart);
 }
 void Dashboard_DisplayDate(UART_HandleTypeDef *huart)
 {

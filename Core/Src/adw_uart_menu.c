@@ -142,7 +142,8 @@ void DrwBlnkRow(UART_HandleTypeDef * huart) {
 	CursorNL(huart);
 }
 
-void DrwCellAt(uint8_t x,uint8_t y,char name_str[], char value_str[],UART_HandleTypeDef * huart) {
+void DrwCellAt(uint8_t x,uint8_t y,const char *name_str,const char *value_str,UART_HandleTypeDef *huart)
+{
 	uint8_t cell_str[128];
 	uint8_t esc_str[11] = "\0";
 	int i, name_len, value_len;
