@@ -288,7 +288,7 @@ void Dashboard_DisplayTime(UART_HandleTypeDef *huart)
             sTime.Minutes,
             sTime.Seconds);
 
-    DrwCellAt(RIGHT_COL, 7, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 4, name_str, value_str, huart);
 }
 void Dashboard_DisplayWaterCount(UART_HandleTypeDef *huart)
 {

@@ -11,6 +11,7 @@
 #include "rtc_service.h"
 #include "eric_lora.h"
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "main.h"
@@ -51,6 +52,7 @@ static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_
 static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandVersion(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandUptime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
+static bool TerminalConsole_ParseUint8(const char *text,uint8_t *value);
 
 static const TerminalCommand_t terminal_commands[] =
 {
@@ -465,21 +467,38 @@ static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_
     }
 }
 
-static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
+static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
+                                        uint8_t argc,
+                                        char *argv[])
 {
     char response[32];
+    uint8_t value;
     ERIC_Status_t status;
 
-    if (argc != 2U)
+    if ((argc < 2U) || (argc > 3U))
     {
         TerminalConsole_WriteString(
             huart,
-            "Usage: eric on|off|status|baud|rate|channel\r\n");
+            "Usage:\r\n"
+            "  eric on|off|status\r\n"
+            "  eric baud\r\n"
+            "  eric rate [code]\r\n"
+            "  eric channel [code]\r\n");
+
         return;
     }
 
     if (strcmp(argv[1], "on") == 0)
     {
+        if (argc != 2U)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Usage: eric on\r\n");
+
+            return;
+        }
+
         HAL_GPIO_WritePin(
             en_LoRa_GPIO_Port,
             en_LoRa_Pin,
@@ -487,16 +506,32 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
 
         /*
          * Allow the module's regulator and eRIC4 firmware
-         * time to start before another command is issued.
+         * time to start before querying it.
          */
         HAL_Delay(500U);
 
-        TerminalConsole_WriteString(
-            huart,
-            "eRIC radio switched on\r\n");
+        status = ERIC_RefreshSettings();
+
+        if (status == ERIC_OK)
+        {
+            TerminalConsole_WriteString(huart,"eRIC radio switched on; settings refreshed\r\n");
+        }
+        else
+        {
+            TerminalConsole_WriteString(huart,"eRIC radio switched on; settings refresh failed\r\n");
+        }
     }
     else if (strcmp(argv[1], "off") == 0)
     {
+        if (argc != 2U)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Usage: eric off\r\n");
+
+            return;
+        }
+
         HAL_GPIO_WritePin(
             en_LoRa_GPIO_Port,
             en_LoRa_Pin,
@@ -509,6 +544,15 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
     else if (strcmp(argv[1], "status") == 0)
     {
         GPIO_PinState pin_state;
+
+        if (argc != 2U)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Usage: eric status\r\n");
+
+            return;
+        }
 
         pin_state = HAL_GPIO_ReadPin(
             en_LoRa_GPIO_Port,
@@ -529,36 +573,135 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
     }
     else if (strcmp(argv[1], "baud") == 0)
     {
-        status = ERIC_QueryUartBaudRate(
-            response,
-            sizeof(response));
+        if (argc == 2U)
+        {
+            status = ERIC_QueryUartBaudRate(
+                response,
+                sizeof(response));
 
-        TerminalConsole_PrintEricResult(
-            huart,
-            status,
-            response);
+            TerminalConsole_PrintEricResult(
+                huart,
+                status,
+                response);
+        }
+        else
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Changing eRIC baud is not enabled yet; "
+                "the STM32 UART must be changed at the same time\r\n");
+        }
     }
     else if (strcmp(argv[1], "rate") == 0)
     {
-        status = ERIC_QueryAirDataRate(
-            response,
-            sizeof(response));
+        if (argc == 2U)
+        {
+            status = ERIC_QueryAirDataRate(
+                response,
+                sizeof(response));
 
-        TerminalConsole_PrintEricResult(
-            huart,
-            status,
-            response);
+            TerminalConsole_PrintEricResult(
+                huart,
+                status,
+                response);
+
+            return;
+        }
+
+        if (!TerminalConsole_ParseUint8(argv[2], &value))
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Usage: eric rate <numeric code>\r\n");
+
+            return;
+        }
+
+        status = ERIC_SetParameter(
+            ERIC_PARAMETER_AIR_DATA_RATE,
+            value);
+
+        if (status != ERIC_OK)
+        {
+            TerminalConsole_PrintEricResult(
+                huart,
+                status,
+                "");
+
+            return;
+        }
+
+        /*
+         * Read the setting back and update the dashboard cache.
+         */
+        status = ERIC_RefreshSettings();
+
+        if (status == ERIC_OK)
+        {
+            const ERIC_Settings_t *settings;
+
+            settings = ERIC_GetSettings();
+
+            TerminalConsole_WriteString(huart,"eRIC air rate confirmed as ");
+
+            TerminalConsole_WriteString(huart,settings->air_data_rate);
+
+            TerminalConsole_WriteString(huart,"\r\n");
+
+        }
+        else
+        {
+            TerminalConsole_WriteString(huart,"eRIC air rate command sent, but verification failed\r\n");
+        }
     }
     else if (strcmp(argv[1], "channel") == 0)
     {
-        status = ERIC_QueryChannel(
-            response,
-            sizeof(response));
+        if (argc == 2U)
+        {
+            status = ERIC_QueryChannel(response,sizeof(response));
 
-        TerminalConsole_PrintEricResult(
-            huart,
-            status,
-            response);
+            TerminalConsole_PrintEricResult(huart,status,response);
+
+            return;
+        }
+
+        if (!TerminalConsole_ParseUint8(argv[2], &value))
+        {
+            TerminalConsole_WriteString(huart,"Usage: eric channel <numeric code>\r\n");
+
+            return;
+        }
+
+        status = ERIC_SetParameter(ERIC_PARAMETER_CHANNEL,value);
+
+        if (status != ERIC_OK)
+        {
+            TerminalConsole_PrintEricResult(huart,status,"");
+
+            return;
+        }
+
+        /*
+         * Read the setting back and update the dashboard cache.
+         */
+        status = ERIC_RefreshSettings();
+
+        if (status == ERIC_OK)
+        {
+            const ERIC_Settings_t *settings;
+
+            settings = ERIC_GetSettings();
+
+            TerminalConsole_WriteString(huart,"eRIC channel confirmed as ");
+
+            TerminalConsole_WriteString(huart,settings->channel);
+
+            TerminalConsole_WriteString(huart,"\r\n");
+        }
+        else
+        {
+            TerminalConsole_WriteString(huart,"eRIC channel command sent, but verification failed\r\n");
+        }
     }
     else
     {
@@ -732,4 +875,31 @@ static void TerminalConsole_CommandUptime(
         (unsigned long)seconds);
 
     TerminalConsole_WriteString(huart, text);
+}
+
+static bool TerminalConsole_ParseUint8(const char *text,
+                                       uint8_t *value)
+{
+    char *end_ptr;
+    unsigned long parsed_value;
+
+    if ((text == NULL) || (value == NULL) || (*text == '\0'))
+    {
+        return false;
+    }
+
+    parsed_value = strtoul(text, &end_ptr, 10);
+
+    /*
+     * Reject non-numeric characters and values too large
+     * for uint8_t.
+     */
+    if ((*end_ptr != '\0') || (parsed_value > 255UL))
+    {
+        return false;
+    }
+
+    *value = (uint8_t)parsed_value;
+
+    return true;
 }
