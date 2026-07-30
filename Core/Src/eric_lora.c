@@ -19,30 +19,17 @@ static RingBuffer_t rx_fifo;
 
 static uint8_t rx_storage[ERIC_RX_BUFFER_SIZE];
 
-static ERIC_Status_t ERIC_SendCommandOnce(const char *command,
-                                          char *response,
-                                          uint16_t response_size);
+static ERIC_Settings_t eric_settings;
 
-static ERIC_Status_t ERIC_QueryCommand(const char *command,
-                                       char *response,
-                                       uint16_t response_size);
-
-static ERIC_Status_t ERIC_ReadResponse(char *response,
-                                       uint16_t response_size,
-                                       uint32_t timeout_ms);
-
+static ERIC_Status_t ERIC_SendCommandOnce(const char *command, char *response, uint16_t response_size);
+static ERIC_Status_t ERIC_QueryCommand(const char *command, char *response, uint16_t response_size);
+static ERIC_Status_t ERIC_ReadResponse(char *response, uint16_t response_size, uint32_t timeout_ms);
 static void ERIC_ClearReceiveBuffer(void);
-
 static ERIC_Status_t ERIC_ApplyCommand(const char *command);
-
 static const char *ERIC_GetQueryCommand(ERIC_Parameter_t parameter);
-
 static char ERIC_GetParameterCommandLetter(ERIC_Parameter_t parameter);
-
-static ERIC_Status_t ERIC_BuildSetCommand(ERIC_Parameter_t parameter,
-                                          uint8_t value,
-                                          char *command,
-                                          uint16_t command_size);
+static ERIC_Status_t ERIC_BuildSetCommand(ERIC_Parameter_t parameter, uint8_t value, char *command, uint16_t command_size);
+static bool ERIC_IsValidParameterResponse(const char *response, char parameter_letter);
 
 ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart)
 {
@@ -56,6 +43,12 @@ ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart)
     RingBuffer_Init(&rx_fifo,
                     rx_storage,
                     ERIC_RX_BUFFER_SIZE);
+
+    memset(&eric_settings, 0, sizeof(eric_settings));
+
+    strcpy(eric_settings.uart_baud, "Unknown");
+    strcpy(eric_settings.air_data_rate, "Unknown");
+    strcpy(eric_settings.channel, "Unknown");
 
     return ERIC_OK;
 }
@@ -302,6 +295,14 @@ static ERIC_Status_t ERIC_ReadResponse(char *response,
                 continue;
             }
 
+            /*
+             * Ignore non-printable startup or framing bytes.
+             */
+            if ((byte < 0x20U) || (byte > 0x7EU))
+            {
+                continue;
+            }
+
             if (index >= (response_size - 1U))
             {
                 response[response_size - 1U] = '\0';
@@ -310,6 +311,7 @@ static ERIC_Status_t ERIC_ReadResponse(char *response,
 
             response[index] = (char)byte;
             index++;
+
         }
         else if (received_byte &&
                  ((HAL_GetTick() - last_byte_tick) >=
@@ -451,4 +453,93 @@ ERIC_Status_t ERIC_SetParameter(ERIC_Parameter_t parameter,
     }
 
     return ERIC_ApplyCommand(command);
+}
+
+const ERIC_Settings_t *ERIC_GetSettings(void)
+{
+    return &eric_settings;
+}
+
+ERIC_Status_t ERIC_RefreshSettings(void)
+{
+    ERIC_Status_t status;
+    ERIC_Status_t overall_status = ERIC_OK;
+
+    status = ERIC_QueryUartBaudRate(eric_settings.uart_baud, sizeof(eric_settings.uart_baud));
+
+    if ((status == ERIC_OK) && ERIC_IsValidParameterResponse(eric_settings.uart_baud,'U'))
+    {
+        eric_settings.uart_baud_valid = true;
+    }
+    else
+    {
+        eric_settings.uart_baud_valid = false;
+        strcpy(eric_settings.uart_baud, "Unavailable");
+
+        if (status == ERIC_OK)
+        {
+            status = ERIC_BAD_RESPONSE;
+        }
+
+        overall_status = status;
+    }
+    status = ERIC_QueryAirDataRate(eric_settings.air_data_rate, sizeof(eric_settings.air_data_rate));
+
+    if (status == ERIC_OK)
+    {
+        eric_settings.air_data_rate_valid = true;
+    }
+    else
+    {
+        eric_settings.air_data_rate_valid = false;
+        strcpy(eric_settings.air_data_rate, "Unavailable");
+
+        if (overall_status == ERIC_OK)
+        {
+            overall_status = status;
+        }
+    }
+
+    status = ERIC_QueryChannel(eric_settings.channel, sizeof(eric_settings.channel));
+
+    if (status == ERIC_OK)
+    {
+        eric_settings.channel_valid = true;
+    }
+    else
+    {
+        eric_settings.channel_valid = false;
+        strcpy(eric_settings.channel, "Unavailable");
+
+        if (overall_status == ERIC_OK)
+        {
+            overall_status = status;
+        }
+    }
+
+    return overall_status;
+}
+static bool ERIC_IsValidParameterResponse(const char *response, char parameter_letter)
+{
+    if (response == NULL)
+    {
+        return false;
+    }
+
+    if (strlen(response) < 9U)
+    {
+        return false;
+    }
+
+    if (strncmp(response, "ER_CMD#", 7U) != 0)
+    {
+        return false;
+    }
+
+    if (response[7] != parameter_letter)
+    {
+        return false;
+    }
+
+    return true;
 }

@@ -38,4 +38,8 @@ void Dashboard_StreamHumidity(UART_HandleTypeDef *huart);
 
 void Dashboard_UpdateAdcValues(const uint32_t *values, uint8_t count);
 
+void Dashboard_DisplayEricBaud(UART_HandleTypeDef *huart);
+void Dashboard_DisplayEricAirRate(UART_HandleTypeDef *huart);
+void Dashboard_DisplayEricChannel(UART_HandleTypeDef *huart);
+
 #endif /* INC_DASHBOARD_H_ */

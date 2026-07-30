@@ -32,6 +32,17 @@ typedef enum
 
 } ERIC_Parameter_t;
 
+typedef struct
+{
+    char uart_baud[16];
+    char air_data_rate[16];
+    char channel[16];
+
+    bool uart_baud_valid;
+    bool air_data_rate_valid;
+    bool channel_valid;
+} ERIC_Settings_t;
+
 ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart);
 
 void ERIC_UART_RxByte(uint8_t byte);
@@ -44,6 +55,10 @@ ERIC_Status_t ERIC_SendString(const char *text);
 bool ERIC_ReadByte(uint8_t *byte);
 
 uint16_t ERIC_Available(void);
+
+ERIC_Status_t ERIC_RefreshSettings(void);
+
+const ERIC_Settings_t *ERIC_GetSettings(void);
 
 /*
  * Generic parameter query.

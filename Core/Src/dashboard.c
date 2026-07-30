@@ -11,6 +11,7 @@
 #include "i2c.h"
 #include "rtc.h"
 #include "gpio.h"
+#include "eric_lora.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -156,7 +157,7 @@ void Dashboard_Display3V3(UART_HandleTypeDef * huart) {
 	DrwCellAt(LEFT_COL,6,name_str,value_str,huart);
 }
 void Dashboard_DisplayLoRaCurrent(UART_HandleTypeDef * huart) {
-	char name_str[128] = "LoRa 5V Rail Current:\0";
+	char name_str[128] = "eRIC 5V Rail Current:\0";
 	char value_str[128] = "\0";
 	float lorai = 0;
 
@@ -167,7 +168,7 @@ void Dashboard_DisplayLoRaCurrent(UART_HandleTypeDef * huart) {
 	DrwCellAt(LEFT_COL,7,name_str,value_str,huart);
 }
 void Dashboard_DisplayLoRaEnable(UART_HandleTypeDef * huart) {
-	char name_str[128] = "LoRa Enable:\0";
+	char name_str[128] = "eRIC Enable:\0";
 	char value_str[128] = "\0";
 
 	if (HAL_GPIO_ReadPin(GPIOB, en_LoRa_Pin)) {
@@ -177,7 +178,60 @@ void Dashboard_DisplayLoRaEnable(UART_HandleTypeDef * huart) {
 		sprintf(value_str,"Low(0)");
 	}
 
-	DrwCellAt(RIGHT_COL,4,name_str,value_str,huart);
+	DrwCellAt(LEFT_COL,8,name_str,value_str,huart);
+}
+void Dashboard_DisplayEricBaud(UART_HandleTypeDef *huart)
+{
+    const ERIC_Settings_t *settings;
+    char name_str[40] = "eRIC Baud Rate:\0";
+    char value_str[40];
+
+    settings = ERIC_GetSettings();
+
+    snprintf(value_str, sizeof(value_str), "%-16s", settings->uart_baud);
+
+    /*
+     * Replace this with the appropriate dashboard cursor position.
+     */
+//    CursorPosition(huart, ERIC_BAUD_ROW, ERIC_VALUE_COLUMN);
+
+//    HAL_UART_Transmit(huart, (uint8_t *)value_str, (uint16_t)strlen(value_str), HAL_MAX_DELAY);
+
+    DrwCellAt(LEFT_COL, 9, name_str, value_str, huart);
+}
+void Dashboard_DisplayEricAirRate(UART_HandleTypeDef *huart)
+{
+    const ERIC_Settings_t *settings;
+    char name_str[40] = "eRIC Air Rate:\0";
+    char value_str[40];
+//    char text[40];
+
+    settings = ERIC_GetSettings();
+
+    snprintf(value_str, sizeof(value_str), "%-16s", settings->air_data_rate);
+
+//    CursorPosition(huart, ERIC_AIR_RATE_ROW, ERIC_VALUE_COLUMN);
+
+//    HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
+
+    DrwCellAt(LEFT_COL, 10, name_str, value_str, huart);
+}
+void Dashboard_DisplayEricChannel(UART_HandleTypeDef *huart)
+{
+    const ERIC_Settings_t *settings;
+    char name_str[40] = "eRIC Channel:\0";
+    char value_str[40];
+//    char text[40];
+
+    settings = ERIC_GetSettings();
+
+    snprintf(value_str, sizeof(value_str), "%-16s", settings->channel);
+
+//    CursorPosition(huart, ERIC_CHANNEL_ROW, ERIC_VALUE_COLUMN);
+
+//    HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
+
+    DrwCellAt(LEFT_COL, 11, name_str, value_str, huart);
 }
 void Dashboard_DisplayDate(UART_HandleTypeDef *huart)
 {
@@ -371,5 +425,9 @@ void Dashboard_Refresh(UART_HandleTypeDef *huart)
     Dashboard_DisplayWaterCount(huart);
     Dashboard_DisplayWaterGate(huart);
     Dashboard_DisplayWaterFrequency(huart);
+
+    Dashboard_DisplayEricBaud(huart);
+    Dashboard_DisplayEricAirRate(huart);
+    Dashboard_DisplayEricChannel(huart);
 }
 

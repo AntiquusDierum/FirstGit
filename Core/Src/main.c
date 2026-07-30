@@ -162,6 +162,8 @@ int main(void)
 
   status = ERIC_Init(eric_uart);
 
+  HAL_Delay(500);
+
   if (status == ERIC_OK)
   {
       /*
@@ -177,10 +179,11 @@ int main(void)
   if (status == ERIC_OK)
   {
       HAL_Delay(100);
-
-/*      status = ERIC_SetAirDataRateB4(response,
-                                     sizeof(response));*/
   }
+
+  HAL_Delay(500);
+
+  ERIC_RefreshSettings();
 
   if (SHT25_Init(&hi2c1) != HAL_OK)
   {
