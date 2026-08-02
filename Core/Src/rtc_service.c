@@ -20,8 +20,7 @@ static uint8_t RTCService_CalculateWeekday(uint16_t year,
 
 void RTCService_PrintDateTime(UART_HandleTypeDef *huart)
 {
-    RTC_TimeTypeDef time;
-    RTC_DateTypeDef date;
+    RTCService_DateTime_t date_time;
     char buffer[64];
 
     if (huart == NULL)
@@ -29,28 +28,22 @@ void RTCService_PrintDateTime(UART_HandleTypeDef *huart)
         return;
     }
 
-    HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
-
-    /*
-     * The STM32 RTC date must be read immediately after the time.
-     * This unlocks the RTC shadow registers.
-     */
-    HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
+    if (RTCService_GetDateTime(&date_time) != HAL_OK)
+    {
+        return;
+    }
 
     snprintf(buffer,
              sizeof(buffer),
-             "%02u-%02u-20%02u %02u:%02u:%02u\r\n",
-             date.Date,
-             date.Month,
-             date.Year,
-             time.Hours,
-             time.Minutes,
-             time.Seconds);
+             "%02u-%02u-%04u %02u:%02u:%02u\r\n",
+             date_time.day,
+             date_time.month,
+             date_time.year,
+             date_time.hour,
+             date_time.minute,
+             date_time.second);
 
-    HAL_UART_Transmit(huart,
-                      (uint8_t *)buffer,
-                      strlen(buffer),
-                      HAL_MAX_DELAY);
+    HAL_UART_Transmit(huart,(uint8_t *)buffer,strlen(buffer),HAL_MAX_DELAY);
 }
 
 HAL_StatusTypeDef RTCService_SetDateTime(uint8_t year,
@@ -203,4 +196,48 @@ static uint8_t RTCService_CalculateWeekday(uint16_t year,
         case 5: return RTC_WEEKDAY_FRIDAY;
         default: return RTC_WEEKDAY_SATURDAY;
     }
+}
+
+HAL_StatusTypeDef RTCService_GetDateTime(
+    RTCService_DateTime_t *date_time)
+{
+    RTC_TimeTypeDef time;
+    RTC_DateTypeDef date;
+
+    if (date_time == NULL)
+    {
+        return HAL_ERROR;
+    }
+
+    if (HAL_RTC_GetTime(
+            &hrtc,
+            &time,
+            RTC_FORMAT_BIN) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    /*
+     * The STM32 RTC date must be read immediately after
+     * the time to unlock the shadow registers.
+     */
+    if (HAL_RTC_GetDate(
+            &hrtc,
+            &date,
+            RTC_FORMAT_BIN) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    date_time->year =
+        (uint16_t)date.Year + 2000U;
+
+    date_time->month = date.Month;
+    date_time->day = date.Date;
+
+    date_time->hour = time.Hours;
+    date_time->minute = time.Minutes;
+    date_time->second = time.Seconds;
+
+    return HAL_OK;
 }
