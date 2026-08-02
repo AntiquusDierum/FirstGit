@@ -79,17 +79,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     {
         TerminalConsole_RxByte(debug_uart_rx);
 
-        HAL_UART_Receive_IT(debug_uart,
-                            &debug_uart_rx,
-                            1);
+        HAL_UART_Receive_IT(debug_uart,&debug_uart_rx,1);
     }
     else if (huart == eric_uart)
     {
         ERIC_UART_RxByte(eric_uart_rx);
 
-        HAL_UART_Receive_IT(eric_uart,
-                            &eric_uart_rx,
-                            1);
+        HAL_UART_Receive_IT(eric_uart,&eric_uart_rx,1);
     }
 }
 
@@ -160,21 +156,33 @@ int main(void)
   /* Allow the eRIC4 module to power up. */
   HAL_Delay(500);
 
-  status = ERIC_Init(eric_uart);
+  status = ERIC_Init(eric_uart,&eric_uart_rx);
 
-  HAL_Delay(500);
-
-  if (status == ERIC_OK)
+  if (status != ERIC_OK)
   {
-      /*
-       * Start reception before sending any commands.
-       * The callback will re-arm it after each byte.
-       */
-      if (HAL_UART_Receive_IT(eric_uart, &eric_uart_rx, 1) != HAL_OK)
+      Error_Handler();
+  }
+
+  status = ERIC_DetectUartBaudRate();
+
+  if (status != ERIC_OK)
+  {
+      Error_Handler();
+  }
+
+  /* If you want the radio always standardised at 115200, follow detection with:
+  if (eric_uart->Init.BaudRate != 115200U)
+  {
+      status = ERIC_SetUartBaudRate(8U);
+
+      if (status != ERIC_OK)
       {
-          status = ERIC_UART_ERROR;
+          Error_Handler();
       }
   }
+  */
+
+  HAL_Delay(500);
 
   if (status == ERIC_OK)
   {
@@ -192,9 +200,7 @@ int main(void)
       HAL_UART_Transmit(debug_uart, (uint8_t *)message, sizeof(message) - 1U, HAL_MAX_DELAY);
   }
 
-  if (HAL_ADC_Start_DMA(&hadc,
-                        adcBuffer,
-                        ADC_CHANS) != HAL_OK)
+  if (HAL_ADC_Start_DMA(&hadc, adcBuffer, ADC_CHANS) != HAL_OK)
   {
       Error_Handler();
   }

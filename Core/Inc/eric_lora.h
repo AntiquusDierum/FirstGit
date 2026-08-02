@@ -43,12 +43,11 @@ typedef struct
     bool channel_valid;
 } ERIC_Settings_t;
 
-ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart);
+ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart,uint8_t *rx_byte);
 
 void ERIC_UART_RxByte(uint8_t byte);
 
-ERIC_Status_t ERIC_Send(const uint8_t *data,
-                        uint16_t length);
+ERIC_Status_t ERIC_Send(const uint8_t *data,uint16_t length);
 
 ERIC_Status_t ERIC_SendString(const char *text);
 
@@ -59,6 +58,10 @@ uint16_t ERIC_Available(void);
 ERIC_Status_t ERIC_RefreshSettings(void);
 
 const ERIC_Settings_t *ERIC_GetSettings(void);
+
+ERIC_Status_t ERIC_SetUartBaudRate(uint8_t code);
+
+ERIC_Status_t ERIC_DetectUartBaudRate(void);
 
 /*
  * Generic parameter query.

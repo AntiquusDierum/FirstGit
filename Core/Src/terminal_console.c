@@ -583,13 +583,50 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
                 huart,
                 status,
                 response);
+
+            return;
         }
-        else
+
+        if (!TerminalConsole_ParseUint8(argv[2], &value))
         {
             TerminalConsole_WriteString(
                 huart,
-                "Changing eRIC baud is not enabled yet; "
-                "the STM32 UART must be changed at the same time\r\n");
+                "Usage: eric baud <0-8>\r\n");
+
+            return;
+        }
+
+        status = ERIC_SetUartBaudRate(value);
+
+        if (status == ERIC_OK)
+        {
+            const ERIC_Settings_t *settings =
+                ERIC_GetSettings();
+
+            TerminalConsole_WriteString(
+                huart,
+                "eRIC UART baud confirmed as ");
+
+            TerminalConsole_WriteString(
+                huart,
+                settings->uart_baud);
+
+            TerminalConsole_WriteString(
+                huart,
+                "\r\n");
+        }
+        else
+        {
+            char text[64];
+
+            snprintf(text,
+                     sizeof(text),
+                     "eRIC UART baud change failed: %d\r\n",
+                     (int)status);
+
+            TerminalConsole_WriteString(
+                huart,
+                text);
         }
     }
     else if (strcmp(argv[1], "rate") == 0)

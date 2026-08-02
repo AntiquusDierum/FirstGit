@@ -13,6 +13,8 @@
 #define ERIC_RX_BUFFER_SIZE    			256U
 #define ERIC_UART_TIMEOUT_MS  			1000U
 #define ERIC_RESPONSE_IDLE_TIMEOUT_MS   20U
+#define ERIC_UART_BAUD_CODE_COUNT  		9U
+#define ERIC_UART_SETTLE_MS        		100U
 
 static UART_HandleTypeDef *eric_handle;
 
@@ -21,6 +23,22 @@ static RingBuffer_t rx_fifo;
 static uint8_t rx_storage[ERIC_RX_BUFFER_SIZE];
 
 static ERIC_Settings_t eric_settings;
+
+static uint8_t *eric_rx_byte = NULL;
+
+static const uint32_t eric_uart_baud_rates
+    [ERIC_UART_BAUD_CODE_COUNT] =
+{
+    1200U,      /* U0 */
+    2400U,      /* U1 */
+    4800U,      /* U2 */
+    9600U,      /* U3 */
+    19200U,     /* U4 */
+    38400U,     /* U5 */
+    57600U,     /* U6 */
+    76800U,     /* U7 */
+    115200U     /* U8 */
+};
 
 static ERIC_Status_t ERIC_SendCommandOnce(const char *command, char *response, uint16_t response_size);
 static ERIC_Status_t ERIC_QueryCommand(const char *command, char *response, uint16_t response_size);
@@ -31,25 +49,34 @@ static const char *ERIC_GetQueryCommand(ERIC_Parameter_t parameter);
 static char ERIC_GetParameterCommandLetter(ERIC_Parameter_t parameter);
 static ERIC_Status_t ERIC_BuildSetCommand(ERIC_Parameter_t parameter, uint8_t value, char *command, uint16_t command_size);
 static bool ERIC_IsValidParameterResponse(const char *response, char parameter_letter);
+static ERIC_Status_t ERIC_ReinitialiseUart(uint32_t baud_rate);
+static bool ERIC_BaudResponseMatches(const char *response,uint8_t code);
 
-ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart)
+ERIC_Status_t ERIC_Init(UART_HandleTypeDef *huart,uint8_t *rx_byte)
 {
-	if (huart == NULL)
-	{
-	    return ERIC_INVALID_ARGUMENT;
-	}
+    if ((huart == NULL) || (rx_byte == NULL))
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
 
     eric_handle = huart;
+    eric_rx_byte = rx_byte;
 
-    RingBuffer_Init(&rx_fifo,
-                    rx_storage,
-                    ERIC_RX_BUFFER_SIZE);
+    RingBuffer_Init(&rx_fifo,rx_storage,ERIC_RX_BUFFER_SIZE);
 
     memset(&eric_settings, 0, sizeof(eric_settings));
 
     strcpy(eric_settings.uart_baud, "Unknown");
     strcpy(eric_settings.air_data_rate, "Unknown");
     strcpy(eric_settings.channel, "Unknown");
+
+    if (HAL_UART_Receive_IT(eric_handle,eric_rx_byte,1U) != HAL_OK)
+    {
+        eric_handle = NULL;
+        eric_rx_byte = NULL;
+
+        return ERIC_UART_ERROR;
+    }
 
     return ERIC_OK;
 }
@@ -543,4 +570,298 @@ static bool ERIC_IsValidParameterResponse(const char *response, char parameter_l
     }
 
     return true;
+}
+
+static ERIC_Status_t ERIC_ReinitialiseUart(
+    uint32_t baud_rate)
+{
+    if ((eric_handle == NULL) ||
+        (eric_rx_byte == NULL) ||
+        (baud_rate == 0U))
+    {
+        return ERIC_NOT_INITIALISED;
+    }
+
+    /*
+     * Stop any outstanding interrupt reception before
+     * disabling and reconfiguring the UART.
+     */
+    if (HAL_UART_AbortReceive(eric_handle) != HAL_OK)
+    {
+        return ERIC_UART_ERROR;
+    }
+
+    if (HAL_UART_DeInit(eric_handle) != HAL_OK)
+    {
+        return ERIC_UART_ERROR;
+    }
+
+    eric_handle->Init.BaudRate = baud_rate;
+
+    if (HAL_UART_Init(eric_handle) != HAL_OK)
+    {
+        return ERIC_UART_ERROR;
+    }
+
+    /*
+     * Discard bytes received using the previous baud rate.
+     */
+    RingBuffer_Init(&rx_fifo,
+                    rx_storage,
+                    ERIC_RX_BUFFER_SIZE);
+
+    if (HAL_UART_Receive_IT(eric_handle,
+                            eric_rx_byte,
+                            1U) != HAL_OK)
+    {
+        return ERIC_UART_ERROR;
+    }
+
+    return ERIC_OK;
+}
+
+static bool ERIC_BaudResponseMatches(
+    const char *response,
+    uint8_t code)
+{
+    char expected[16];
+    int written;
+
+    if (response == NULL)
+    {
+        return false;
+    }
+
+    written = snprintf(expected,
+                       sizeof(expected),
+                       "ER_CMD#U%u",
+                       (unsigned int)code);
+
+    if ((written < 0) ||
+        ((size_t)written >= sizeof(expected)))
+    {
+        return false;
+    }
+
+    return strcmp(response, expected) == 0;
+}
+
+ERIC_Status_t ERIC_SetUartBaudRate(uint8_t code)
+{
+    uint32_t old_baud_rate;
+    uint32_t new_baud_rate;
+    char response[16];
+    ERIC_Status_t status;
+
+    if ((eric_handle == NULL) ||
+        (eric_rx_byte == NULL))
+    {
+        return ERIC_NOT_INITIALISED;
+    }
+
+    if (code >= ERIC_UART_BAUD_CODE_COUNT)
+    {
+        return ERIC_INVALID_ARGUMENT;
+    }
+
+    old_baud_rate = eric_handle->Init.BaudRate;
+    new_baud_rate = eric_uart_baud_rates[code];
+
+    /*
+     * If the UART is already at this baud, do not send a
+     * setting command unnecessarily.  Verify communication.
+     */
+    if (old_baud_rate == new_baud_rate)
+    {
+        status = ERIC_QueryUartBaudRate(
+            response,
+            sizeof(response));
+
+        if ((status == ERIC_OK) &&
+            ERIC_BaudResponseMatches(response, code))
+        {
+            strncpy(eric_settings.uart_baud,
+                    response,
+                    sizeof(eric_settings.uart_baud) - 1U);
+
+            eric_settings.uart_baud[
+                sizeof(eric_settings.uart_baud) - 1U] = '\0';
+
+            eric_settings.uart_baud_valid = true;
+
+            return ERIC_OK;
+        }
+
+        return (status == ERIC_OK)
+             ? ERIC_BAD_RESPONSE
+             : status;
+    }
+
+    /*
+     * Send ER_CMD#Ux, wait for its complete echo, and send ACK
+     * while both ends are still using the old baud rate.
+     */
+    status = ERIC_SetParameter(
+        ERIC_PARAMETER_UART_BAUD,
+        code);
+
+    if (status != ERIC_OK)
+    {
+        return status;
+    }
+
+    /*
+     * The module may change baud immediately after receiving ACK.
+     */
+    HAL_Delay(ERIC_UART_SETTLE_MS);
+
+    status = ERIC_ReinitialiseUart(new_baud_rate);
+
+    if (status != ERIC_OK)
+    {
+        /*
+         * Make one attempt to restore the STM32 UART to its
+         * previous configuration.  The module may nevertheless
+         * already be using the new rate.
+         */
+        (void)ERIC_ReinitialiseUart(old_baud_rate);
+
+        return status;
+    }
+
+    HAL_Delay(ERIC_UART_SETTLE_MS);
+
+    /*
+     * Verify at the newly selected baud rate.
+     * ERIC_QueryCommand() already retries a timed-out query once.
+     */
+    status = ERIC_QueryUartBaudRate(
+        response,
+        sizeof(response));
+
+    if ((status == ERIC_OK) &&
+        ERIC_BaudResponseMatches(response, code))
+    {
+        strncpy(eric_settings.uart_baud,
+                response,
+                sizeof(eric_settings.uart_baud) - 1U);
+
+        eric_settings.uart_baud[
+            sizeof(eric_settings.uart_baud) - 1U] = '\0';
+
+        eric_settings.uart_baud_valid = true;
+
+        return ERIC_OK;
+    }
+
+    /*
+     * Verification at the new rate failed.  Check whether the
+     * module remained at the old rate.
+     */
+    if (ERIC_ReinitialiseUart(old_baud_rate) == ERIC_OK)
+    {
+        HAL_Delay(ERIC_UART_SETTLE_MS);
+
+        if (ERIC_QueryUartBaudRate(
+                response,
+                sizeof(response)) == ERIC_OK)
+        {
+            /*
+             * The module is still reachable at the original
+             * rate, so leave the STM32 safely synchronised there.
+             */
+            strncpy(eric_settings.uart_baud,
+                    response,
+                    sizeof(eric_settings.uart_baud) - 1U);
+
+            eric_settings.uart_baud[
+                sizeof(eric_settings.uart_baud) - 1U] = '\0';
+
+            eric_settings.uart_baud_valid = true;
+
+            return ERIC_BAD_RESPONSE;
+        }
+    }
+
+    /*
+     * Neither rate verified.  Return the STM32 to the requested
+     * baud because the module most likely accepted the command,
+     * even though verification failed.
+     */
+    (void)ERIC_ReinitialiseUart(new_baud_rate);
+
+    eric_settings.uart_baud_valid = false;
+
+    strncpy(eric_settings.uart_baud,
+            "Unverified",
+            sizeof(eric_settings.uart_baud) - 1U);
+
+    eric_settings.uart_baud[
+        sizeof(eric_settings.uart_baud) - 1U] = '\0';
+
+    return (status == ERIC_OK)
+         ? ERIC_BAD_RESPONSE
+         : status;
+}
+
+ERIC_Status_t ERIC_DetectUartBaudRate(void)
+{
+    static const uint32_t baud_rates[] =
+    {
+        115200U,
+        19200U
+    };
+
+    char response[16];
+    ERIC_Status_t status;
+
+    if ((eric_handle == NULL) ||
+        (eric_rx_byte == NULL))
+    {
+        return ERIC_NOT_INITIALISED;
+    }
+
+    for (uint8_t index = 0U;
+         index < (sizeof(baud_rates) / sizeof(baud_rates[0]));
+         index++)
+    {
+        status = ERIC_ReinitialiseUart(baud_rates[index]);
+
+        if (status != ERIC_OK)
+        {
+            continue;
+        }
+
+        HAL_Delay(100U);
+
+        status = ERIC_QueryUartBaudRate(
+            response,
+            sizeof(response));
+
+        if ((status == ERIC_OK) &&
+            ERIC_IsValidParameterResponse(response, 'U'))
+        {
+            strncpy(eric_settings.uart_baud,
+                    response,
+                    sizeof(eric_settings.uart_baud) - 1U);
+
+            eric_settings.uart_baud[
+                sizeof(eric_settings.uart_baud) - 1U] = '\0';
+
+            eric_settings.uart_baud_valid = true;
+
+            return ERIC_OK;
+        }
+    }
+
+    eric_settings.uart_baud_valid = false;
+
+    strncpy(eric_settings.uart_baud,
+            "Unavailable",
+            sizeof(eric_settings.uart_baud) - 1U);
+
+    eric_settings.uart_baud[
+        sizeof(eric_settings.uart_baud) - 1U] = '\0';
+
+    return ERIC_TIMEOUT;
 }
