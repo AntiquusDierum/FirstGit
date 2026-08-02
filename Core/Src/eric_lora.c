@@ -806,11 +806,18 @@ ERIC_Status_t ERIC_SetUartBaudRate(uint8_t code)
 
 ERIC_Status_t ERIC_DetectUartBaudRate(void)
 {
-    static const uint32_t baud_rates[] =
-    {
-        115200U,
-        19200U
-    };
+	static const uint32_t baud_rates[] =
+	{
+	    115200U,    /* U8: preferred */
+	    38400U,     /* U5: current module setting */
+	    19200U,     /* U4 */
+	    57600U,     /* U6 */
+	    76800U,     /* U7 */
+	    9600U,      /* U3 */
+	    4800U,      /* U2 */
+	    2400U,      /* U1 */
+	    1200U       /* U0 */
+	};
 
     char response[16];
     ERIC_Status_t status;

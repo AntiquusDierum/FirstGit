@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "main.h"
+#include "telemetry.h"
 
 #define TERMINAL_MAX_ARGUMENTS  8U
 
@@ -616,6 +617,44 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
             TerminalConsole_WriteString(
                 huart,
                 text);
+        }
+    }
+    else if (strcmp(argv[1], "send") == 0)
+    {
+        char telemetry[128];
+        ERIC_Status_t status;
+
+        if (argc != 2U)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Usage: eric send\r\n");
+
+            return;
+        }
+
+        Telemetry_BuildString(
+            telemetry,
+            sizeof(telemetry));
+
+        status = ERIC_SendString(telemetry);
+
+        if (status == ERIC_OK)
+        {
+            status = ERIC_SendString("\r\n");
+        }
+
+        if (status == ERIC_OK)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Telemetry sent\r\n");
+        }
+        else
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Telemetry transmission failed\r\n");
         }
     }
     else if (strcmp(argv[1], "baud") == 0)
