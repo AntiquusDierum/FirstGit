@@ -62,7 +62,7 @@ static const TerminalCommand_t terminal_commands[] =
     },
 	{
 	    "eric",     TerminalConsole_CommandEric,
-	    "eric on|off|status|baud|rate|channel"
+	    "eric on|off|status|test|baud|rate|channel"
 	},
     {
         "help",     TerminalConsole_CommandHelp,
@@ -480,7 +480,7 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
         TerminalConsole_WriteString(
             huart,
             "Usage:\r\n"
-            "  eric on|off|status\r\n"
+            "  eric on|off|status|test\r\n"
             "  eric baud\r\n"
             "  eric rate [code]\r\n"
             "  eric channel [code]\r\n");
@@ -569,6 +569,53 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
             TerminalConsole_WriteString(
                 huart,
                 "eRIC radio is off\r\n");
+        }
+    }
+    else if (strcmp(argv[1], "test") == 0)
+    {
+        static const char test_message[] =
+            "Hello from Watson Cybernetics\r\n";
+
+        if (argc != 2U)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Usage: eric test\r\n");
+
+            return;
+        }
+
+        if (HAL_GPIO_ReadPin(
+                en_LoRa_GPIO_Port,
+                en_LoRa_Pin) != GPIO_PIN_SET)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "eRIC radio is switched off\r\n");
+
+            return;
+        }
+
+        status = ERIC_SendString(test_message);
+
+        if (status == ERIC_OK)
+        {
+            TerminalConsole_WriteString(
+                huart,
+                "Radio test message sent\r\n");
+        }
+        else
+        {
+            char text[64];
+
+            snprintf(text,
+                     sizeof(text),
+                     "Radio test failed: %d\r\n",
+                     (int)status);
+
+            TerminalConsole_WriteString(
+                huart,
+                text);
         }
     }
     else if (strcmp(argv[1], "baud") == 0)
