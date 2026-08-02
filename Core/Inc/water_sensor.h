@@ -49,6 +49,15 @@ HAL_StatusTypeDef WaterSensor_Init(TIM_HandleTypeDef *htim_reference,
 HAL_StatusTypeDef WaterSensor_Measure(
     WaterSensor_Measurement_t *measurement);
 
+/**
+ * @brief Copy the most recent successful measurement.
+ *
+ * @param measurement Destination for the cached measurement.
+ *
+ * @return HAL_OK when a valid measurement is available.
+ */
+HAL_StatusTypeDef WaterSensor_GetLatestMeasurement(
+    WaterSensor_Measurement_t *measurement);
 
 #ifdef __cplusplus
 }
