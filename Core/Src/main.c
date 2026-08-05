@@ -108,13 +108,13 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  uint32_t timerValue = 0;
-  static uint32_t lastTimerValue = 0xFFFFFFFF;
   static uint32_t lastRefresh = 0;
   uint32_t lastSecond = 0xFFFFFFFF;
   uint32_t lastMinute = 0xFFFFFFFF;
   ERIC_Status_t status;
   WaterSensor_Measurement_t water_measurement;
+  static uint32_t heartbeat_cycle_start = 0U;
+  static GPIO_PinState heartbeat_state = GPIO_PIN_SET;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -139,7 +139,6 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC_Init();
   MX_I2C1_Init();
-  MX_TIM6_Init();
   MX_UART5_Init();
   MX_RTC_Init();
   MX_TIM4_Init();
@@ -152,6 +151,8 @@ int main(void)
   HAL_UART_Receive_IT(debug_uart, &debug_uart_rx, 1);
   HAL_Delay(50);
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
+
+  HAL_GPIO_WritePin(LED_Heartbeat_GPIO_Port, LED_Heartbeat_Pin, GPIO_PIN_SET);
 
   /* Allow the eRIC4 module to power up. */
   HAL_Delay(500);
@@ -288,8 +289,6 @@ int main(void)
 	      }
 	  }
 
-	  timerValue = __HAL_TIM_GET_COUNTER(&htim6);
-
 	  if ((HAL_GetTick() - lastRefresh) >= 60000)
 	  {
 	      lastRefresh = HAL_GetTick();
@@ -300,33 +299,40 @@ int main(void)
 	      }
 	  }
 
-	  if (timerValue != lastTimerValue)
+	  uint32_t heartbeat_elapsed;
+	  GPIO_PinState required_state;
+
+	  heartbeat_elapsed = HAL_GetTick() - heartbeat_cycle_start;
+
+	  /*
+	   * Start a new one-second heartbeat cycle.
+	   */
+	  if (heartbeat_elapsed >= 1000U)
 	  {
-		  lastTimerValue = timerValue;
-
-		  switch (timerValue)
-		  {
-		  	  case 0:
-		  		  HAL_GPIO_WritePin(GPIOA, LED_Heartbeat_Pin, GPIO_PIN_SET);
-		  		  break;
-
-		  	  case 100:
-//		  		  Dashboard_DisplayLoRaEnable(debug_uart);
-		  		  break;
-
-		  	  case 150:
-//	  			  Dashboard_StreamTemperature(debug_uart);
-		  		  break;
-
-		  	  case 250:
-		  		  HAL_GPIO_WritePin(GPIOA, LED_Heartbeat_Pin, GPIO_PIN_RESET);
-		  		  break;
-
-		  	  case 400:
-		  		  break;
-
-		  }
+	      heartbeat_cycle_start += 1000U;
+	      heartbeat_elapsed = HAL_GetTick() - heartbeat_cycle_start;
 	  }
+
+	  /*
+	   * Active-low LED:
+	   *
+	   * First 50 ms  -> RESET -> LED on
+	   * Remaining    -> SET   -> LED off
+	   */
+	  required_state = (heartbeat_elapsed < 50U)
+	          ? GPIO_PIN_RESET
+	          : GPIO_PIN_SET;
+
+	  /*
+	   * Only write to the GPIO when the required LED state changes.
+	   */
+	  if (required_state != heartbeat_state)
+	  {
+	      heartbeat_state = required_state;
+
+	      HAL_GPIO_WritePin(LED_Heartbeat_GPIO_Port, LED_Heartbeat_Pin, heartbeat_state);
+	  }
+
   }
   /* USER CODE END 3 */
 }
