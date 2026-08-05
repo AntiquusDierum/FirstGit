@@ -5,7 +5,7 @@
  *      Author: Alan & Dione
  */
 
-#include <project_info.h>
+#include "project_info.h"
 #include "terminal_console.h"
 #include "dashboard.h"
 #include "rtc_service.h"
@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include "main.h"
 #include "telemetry.h"
 
@@ -48,7 +49,6 @@ static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t ar
 static void TerminalConsole_CommandTemperature(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandHumidity(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
-static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandSetDateTime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandVersion(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
@@ -108,6 +108,42 @@ static void TerminalConsole_WriteString(UART_HandleTypeDef *huart, const char *t
 
     HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
 }
+static void TerminalConsole_Printf(
+    UART_HandleTypeDef *huart,
+    const char *format,
+    ...)
+{
+    char text[128];
+    va_list arguments;
+    int written;
+
+    if ((huart == NULL) || (format == NULL))
+    {
+        return;
+    }
+
+    va_start(arguments, format);
+
+    written = vsnprintf(
+        text,
+        sizeof(text),
+        format,
+        arguments);
+
+    va_end(arguments);
+
+    if (written < 0)
+    {
+        return;
+    }
+
+    /*
+     * vsnprintf() always terminates the buffer when its size is
+     * non-zero. If the formatted result was too long, transmit
+     * the safely truncated string.
+     */
+    TerminalConsole_WriteString(huart, text);
+}
 
 static bool TerminalConsole_DispatchCommand( UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 
@@ -123,18 +159,14 @@ static void TerminalConsole_Echo(const uint8_t *data, uint16_t length)
 
 static void TerminalConsole_PrintEricResult(UART_HandleTypeDef *huart, ERIC_Status_t status, const char *response)
 {
-    char text[80];
-
     if ((status == ERIC_OK) && (response != NULL))
     {
-        snprintf(text, sizeof(text), "eRIC response: %s\r\n", response);
+        TerminalConsole_Printf(huart,"eRIC response: %s\r\n",response);
     }
     else
     {
-        snprintf(text, sizeof(text), "eRIC error: %d\r\n", (int)status);
+        TerminalConsole_Printf(huart,"eRIC error: %d\r\n",(int)status);
     }
-
-    TerminalConsole_WriteString(huart, text);
 }
 
 void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
@@ -158,23 +190,15 @@ void TerminalConsole_ShowScreen(UART_HandleTypeDef *huart)
 
 void TerminalConsole_ShowHelp(UART_HandleTypeDef *huart)
 {
-    char text[96];
-
     TerminalConsole_WriteString(huart,"Available commands:\r\n");
 
     for (size_t index = 0U; index < TERMINAL_COMMAND_COUNT; index++)
     {
-        snprintf(text,sizeof(text),"%-10s %s\r\n",
-            terminal_commands[index].name,
-            terminal_commands[index].usage);
-
-        TerminalConsole_WriteString(huart,text);
+        TerminalConsole_Printf(huart, "%-10s %s\r\n", terminal_commands[index].name, terminal_commands[index].usage);
     }
 }
 
-static uint8_t TerminalConsole_Tokenise(char *text,
-                                       char *argv[],
-                                       uint8_t argv_size)
+static uint8_t TerminalConsole_Tokenise(char *text, char *argv[], uint8_t argv_size)
 {
     uint8_t argc = 0U;
     char *current = text;
@@ -607,16 +631,7 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
         }
         else
         {
-            char text[64];
-
-            snprintf(text,
-                     sizeof(text),
-                     "Radio test failed: %d\r\n",
-                     (int)status);
-
-            TerminalConsole_WriteString(
-                huart,
-                text);
+        	TerminalConsole_Printf(huart, "Radio test failed: %d\r\n", (int)status);
         }
     }
     else if (strcmp(argv[1], "send") == 0)
@@ -928,13 +943,8 @@ static bool TerminalConsole_DispatchCommand(UART_HandleTypeDef *huart, uint8_t a
     return false;
 }
 
-static void TerminalConsole_CommandVersion(
-    UART_HandleTypeDef *huart,
-    uint8_t argc,
-    char *argv[])
+static void TerminalConsole_CommandVersion(UART_HandleTypeDef *huart, uint8_t argc, char *argv[])
 {
-    char text[96];
-
     (void)argv;
 
     if (argc != 1U)
@@ -943,21 +953,15 @@ static void TerminalConsole_CommandVersion(
         return;
     }
 
-    snprintf(text, sizeof(text), "%s\r\n", FW_NAME);
-
-    TerminalConsole_WriteString(huart, text);
-
-    snprintf(text, sizeof(text), "Version : %s\r\n", FW_VERSION);
-
-    TerminalConsole_WriteString(huart, text);
-
-    snprintf(text, sizeof(text), "Board   : %s\r\n", FW_BOARD);
-
-    TerminalConsole_WriteString(huart, text);
-
-    snprintf(text, sizeof(text), "Built   : %s %s\r\n", __DATE__, __TIME__);
-
-    TerminalConsole_WriteString(huart, text);
+    TerminalConsole_Printf(huart, "%s\r\n"
+        "Version : %s\r\n"
+        "Board   : %s\r\n"
+        "Built   : %s %s\r\n",
+        FW_NAME,
+        FW_VERSION,
+        FW_BOARD,
+        __DATE__,
+        __TIME__);
 }
 
 static void TerminalConsole_CommandUptime(
@@ -970,7 +974,6 @@ static void TerminalConsole_CommandUptime(
     uint32_t hours;
     uint32_t minutes;
     uint32_t seconds;
-    char text[96];
 
     (void)argv;
 
@@ -991,13 +994,13 @@ static void TerminalConsole_CommandUptime(
     minutes = total_seconds / 60U;
     seconds = total_seconds % 60U;
 
-    snprintf(text, sizeof(text), "Uptime  : %lu days, %02lu:%02lu:%02lu\r\n",
+    TerminalConsole_Printf(
+        huart,
+        "Uptime  : %lu days, %02lu:%02lu:%02lu\r\n",
         (unsigned long)days,
         (unsigned long)hours,
         (unsigned long)minutes,
         (unsigned long)seconds);
-
-    TerminalConsole_WriteString(huart, text);
 }
 
 static bool TerminalConsole_ParseUint8(const char *text,
