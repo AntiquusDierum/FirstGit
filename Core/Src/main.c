@@ -35,6 +35,7 @@
 #include "dashboard.h"
 #include "sht25.h"
 #include "water_sensor.h"
+#include "status_led.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -144,6 +145,7 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  StatusLed_Init();
   if (WaterSensor_Init(&htim2, &htim4) != HAL_OK)
   {
       Error_Handler();
@@ -215,7 +217,7 @@ int main(void)
 
   Dashboard_Show(debug_uart);
   Dashboard_Refresh(debug_uart);
-
+  StatusLed_SetState(STATUS_LED_NORMAL);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -225,18 +227,15 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  static GPIO_PinState status_led_state = LED_STATUS_OFF_STATE;
+//	  static GPIO_PinState status_led_state = LED_STATUS_OFF_STATE;
 
-	  GPIO_PinState required_status_state =
-	      TerminalConsole_IsActive()
-	          ? LED_STATUS_ON_STATE
-	          : LED_STATUS_OFF_STATE;
-
-	  if (required_status_state != status_led_state)
+	  if (TerminalConsole_IsActive())
 	  {
-	      status_led_state = required_status_state;
-
-	      HAL_GPIO_WritePin(LED_Status_GPIO_Port, LED_Status_Pin, status_led_state);
+	      StatusLed_SetState(STATUS_LED_COMMAND);
+	  }
+	  else
+	  {
+	      StatusLed_SetState(STATUS_LED_NORMAL);
 	  }
 
 	  if ((HAL_GetTick() - waterSensorLastUpdate) >= WATER_SENSOR_UPDATE_PERIOD_MS)
@@ -347,6 +346,8 @@ int main(void)
 
 	      HAL_GPIO_WritePin(LED_Heartbeat_GPIO_Port, LED_Heartbeat_Pin, heartbeat_state);
 	  }
+
+	  StatusLed_Task();
 
   }
   /* USER CODE END 3 */

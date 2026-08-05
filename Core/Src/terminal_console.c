@@ -17,6 +17,7 @@
 #include <stdarg.h>
 #include "main.h"
 #include "telemetry.h"
+#include "status_led.h"
 
 #define TERMINAL_MAX_ARGUMENTS  8U
 
@@ -625,7 +626,9 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
 
         if (status == ERIC_OK)
         {
-            TerminalConsole_WriteString(
+        	StatusLed_PulseTx();
+
+        	TerminalConsole_WriteString(
                 huart,
                 "Radio test message sent\r\n");
         }
@@ -661,7 +664,9 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
 
         if (status == ERIC_OK)
         {
-            TerminalConsole_WriteString(
+        	StatusLed_PulseTx();
+
+        	TerminalConsole_WriteString(
                 huart,
                 "Telemetry sent\r\n");
         }
