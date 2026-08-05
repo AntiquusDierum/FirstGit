@@ -153,6 +153,7 @@ int main(void)
   HAL_GPIO_WritePin(GPIOB, en_LoRa_Pin, GPIO_PIN_SET);
 
   HAL_GPIO_WritePin(LED_Heartbeat_GPIO_Port, LED_Heartbeat_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LED_Status_GPIO_Port, LED_Status_Pin, LED_STATUS_OFF_STATE);
 
   /* Allow the eRIC4 module to power up. */
   HAL_Delay(500);
@@ -224,6 +225,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  static GPIO_PinState status_led_state = LED_STATUS_OFF_STATE;
+
+	  GPIO_PinState required_status_state =
+	      TerminalConsole_IsActive()
+	          ? LED_STATUS_ON_STATE
+	          : LED_STATUS_OFF_STATE;
+
+	  if (required_status_state != status_led_state)
+	  {
+	      status_led_state = required_status_state;
+
+	      HAL_GPIO_WritePin(LED_Status_GPIO_Port, LED_Status_Pin, status_led_state);
+	  }
+
 	  if ((HAL_GetTick() - waterSensorLastUpdate) >= WATER_SENSOR_UPDATE_PERIOD_MS)
 	  {
 	      waterSensorLastUpdate = HAL_GetTick();

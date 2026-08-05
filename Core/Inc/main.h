@@ -107,6 +107,8 @@ void Error_Handler(void);
 #define debug_uart &huart5
 #define eric_uart &huart2
 #define CMD_BUFFER_SIZE 64
+#define LED_STATUS_ON_STATE   GPIO_PIN_SET
+#define LED_STATUS_OFF_STATE  GPIO_PIN_RESET
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
