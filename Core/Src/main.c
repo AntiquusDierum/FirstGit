@@ -36,6 +36,7 @@
 #include "sht25.h"
 #include "water_sensor.h"
 #include "status_led.h"
+#include "telemetry.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -116,6 +117,7 @@ int main(void)
   WaterSensor_Measurement_t water_measurement;
   static uint32_t heartbeat_cycle_start = 0U;
   static GPIO_PinState heartbeat_state = GPIO_PIN_SET;
+  static uint32_t lastTelemetryTx = 0U;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -310,6 +312,30 @@ int main(void)
 	      if (!TerminalConsole_IsActive())
 	      {
 	    	  Dashboard_Refresh(debug_uart);
+	      }
+	  }
+
+	  if ((HAL_GetTick() - lastTelemetryTx) >= 5000U)
+	  {
+	      char telemetry[128];
+	      ERIC_Status_t tx_status;
+
+	      lastTelemetryTx = HAL_GetTick();
+
+	      Telemetry_BuildString(
+	          telemetry,
+	          sizeof(telemetry));
+
+	      tx_status = ERIC_SendString(telemetry);
+
+	      if (tx_status == ERIC_OK)
+	      {
+	          tx_status = ERIC_SendString("\r\n");
+	      }
+
+	      if (tx_status == ERIC_OK)
+	      {
+	          StatusLed_PulseTx();
 	      }
 	  }
 
