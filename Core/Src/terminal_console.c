@@ -100,40 +100,28 @@ static const TerminalCommand_t terminal_commands[] =
 #define TERMINAL_COMMAND_COUNT \
     (sizeof(terminal_commands) / sizeof(terminal_commands[0]))
 
-static void TerminalConsole_WriteString(UART_HandleTypeDef *huart, const char *text)
+static void TerminalConsole_WriteString(
+    UART_HandleTypeDef *huart,
+    const char *text)
 {
-    const uint16_t chunk_size = 16U;
-
     if ((huart == NULL) || (text == NULL))
     {
         return;
     }
 
-    if (huart != eric_uart)
-    {
-        HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
-
-        return;
-    }
+    HAL_UART_Transmit(
+        huart,
+        (uint8_t *)text,
+        (uint16_t)strlen(text),
+        HAL_MAX_DELAY);
 
     /*
-     * Pace output sent through the eRIC4 so its radio-side
-     * buffering has time to drain.
+     * Give the eRIC radio link time to transmit this complete
+     * message before another message is queued.
      */
-    while (*text != '\0')
+    if (huart == eric_uart)
     {
-        uint16_t remaining;
-        uint16_t length;
-
-        remaining = (uint16_t)strlen(text);
-
-        length = (remaining > chunk_size) ? chunk_size : remaining;
-
-        HAL_UART_Transmit(huart, (uint8_t *)text, length, HAL_MAX_DELAY);
-
-        text += length;
-
-        HAL_Delay(10U);
+        HAL_Delay(100U);
     }
 }
 static void TerminalConsole_Printf(

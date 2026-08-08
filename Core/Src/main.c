@@ -286,7 +286,7 @@ int main(void)
 	          {
 	              remote_cmd_buffer[remote_cmd_index] = '\0';
 
-	              HAL_Delay(50U);
+	              HAL_Delay(150U);
 
 	              ERIC_SendString("\r\n");
 
@@ -325,6 +325,8 @@ int main(void)
 
 	                  remote_cmd_index = 0U;
 	                  remote_cmd_buffer[0] = '\0';
+
+	                  HAL_Delay(150U);
 
 	                  ERIC_SendString(
 	                      "\r\nCommand> ");
