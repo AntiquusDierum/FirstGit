@@ -41,7 +41,13 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum
+{
+    APP_MODE_STREAM = 0,
+    APP_MODE_DASHBOARD,
+    APP_MODE_CONSOLE
 
+} ApplicationMode_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -64,6 +70,11 @@ uint8_t debug_uart_rx;
 uint8_t eric_uart_rx;
 
 uint32_t waterSensorLastUpdate = 0;
+
+static ApplicationMode_t application_mode = APP_MODE_STREAM;
+
+static uint8_t stream_enter_count = 0U;
+static uint32_t stream_last_enter_tick = 0U;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -230,7 +241,55 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 //	  static GPIO_PinState status_led_state = LED_STATUS_OFF_STATE;
+	  uint8_t eric_byte;
 
+	  while (ERIC_ReadByte(&eric_byte))
+	  {
+	      if (application_mode == APP_MODE_STREAM)
+	      {
+	          if (eric_byte == '\r')
+	          {
+	              uint32_t now = HAL_GetTick();
+
+	              /*
+	               * Require all three Enter presses to arrive within
+	               * one second of each other.
+	               */
+	              if ((stream_enter_count == 0U) ||
+	                  ((now - stream_last_enter_tick) <= 1000U))
+	              {
+	                  stream_enter_count++;
+	              }
+	              else
+	              {
+	                  stream_enter_count = 1U;
+	              }
+
+	              stream_last_enter_tick = now;
+
+	              if (stream_enter_count >= 3U)
+	              {
+	                  stream_enter_count = 0U;
+
+	                  application_mode = APP_MODE_DASHBOARD;
+
+	                  /*
+	                   * For this first test, tell the Raspberry Pi that
+	                   * we have left the telemetry stream.
+	                   */
+	                  ERIC_SendString(
+	                      "\r\n--- DASHBOARD MODE ---\r\n");
+	              }
+	          }
+	          else
+	          {
+	              /*
+	               * Any other received character cancels the sequence.
+	               */
+	              stream_enter_count = 0U;
+	          }
+	      }
+	  }
 	  if (TerminalConsole_IsActive())
 	  {
 	      StatusLed_SetState(STATUS_LED_COMMAND);
@@ -315,7 +374,7 @@ int main(void)
 	      }
 	  }
 
-	  if ((HAL_GetTick() - lastTelemetryTx) >= 5000U)
+	  if ((application_mode == APP_MODE_STREAM) && ((HAL_GetTick() - lastTelemetryTx) >= 5000U))
 	  {
 	      char telemetry[128];
 	      ERIC_Status_t tx_status;
