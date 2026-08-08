@@ -8,6 +8,7 @@
 #define TERMINAL_CONSOLE_H
 
 #include "main.h"
+#include <stdbool.h>
 
 /*
  * Display the command-console heading and initial prompt.
@@ -36,5 +37,7 @@ uint8_t TerminalConsole_RedrawCommandScreen(void);
 void TerminalConsole_ClearRedraws(void);
 
 void TerminalConsole_RxByte(uint8_t ch);
+
+bool TerminalConsole_ExecuteLine(UART_HandleTypeDef *huart, char *line);
 
 #endif /* TERMINAL_CONSOLE_H */

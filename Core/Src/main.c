@@ -44,9 +44,7 @@
 typedef enum
 {
     APP_MODE_STREAM = 0,
-    APP_MODE_DASHBOARD,
-    APP_MODE_CONSOLE
-
+    APP_MODE_REMOTE_CONSOLE
 } ApplicationMode_t;
 /* USER CODE END PTD */
 
@@ -73,8 +71,10 @@ uint32_t waterSensorLastUpdate = 0;
 
 static ApplicationMode_t application_mode = APP_MODE_STREAM;
 
-static uint8_t stream_enter_count = 0U;
-static uint32_t stream_last_enter_tick = 0U;
+#define REMOTE_CMD_BUFFER_SIZE  80U
+
+static char remote_cmd_buffer[REMOTE_CMD_BUFFER_SIZE];
+static uint8_t remote_cmd_index = 0U;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -228,8 +228,21 @@ int main(void)
    */
   HAL_Delay(10U);
 
+  /*
+   * Take an initial water measurement so the first dashboard
+   * display contains valid water-sensor data.
+   */
+  if (WaterSensor_Measure(&water_measurement) == HAL_OK)
+  {
+      Dashboard_SetWaterValues(
+          water_measurement.count,
+          water_measurement.gate_us,
+          water_measurement.frequency_hz);
+  }
+
   Dashboard_Show(debug_uart);
   Dashboard_Refresh(debug_uart);
+
   StatusLed_SetState(STATUS_LED_NORMAL);
   /* USER CODE END 2 */
 
@@ -249,44 +262,119 @@ int main(void)
 	      {
 	          if (eric_byte == '\r')
 	          {
-	              uint32_t now = HAL_GetTick();
+	              application_mode = APP_MODE_REMOTE_CONSOLE;
 
-	              /*
-	               * Require all three Enter presses to arrive within
-	               * one second of each other.
-	               */
-	              if ((stream_enter_count == 0U) ||
-	                  ((now - stream_last_enter_tick) <= 1000U))
+	              remote_cmd_index = 0U;
+	              remote_cmd_buffer[0] = '\0';
+
+	              ERIC_SendString(
+	                  "\r\n"
+	                  "Watson Cybernetics Remote Console\r\n"
+	                  "Type 'help' for commands.\r\n"
+	                  "Type 'quit' or 'exit' to return to telemetry.\r\n"
+	                  "\r\n"
+	                  "Command> ");
+	          }
+
+	          /*
+	           * Everything except Enter is ignored in stream mode.
+	           */
+	      }
+	      else if (application_mode == APP_MODE_REMOTE_CONSOLE)
+	      {
+	          if (eric_byte == '\r')
+	          {
+	              remote_cmd_buffer[remote_cmd_index] = '\0';
+
+	              HAL_Delay(50U);
+
+	              ERIC_SendString("\r\n");
+
+	              if ((strcmp(remote_cmd_buffer, "quit") == 0) ||
+	                  (strcmp(remote_cmd_buffer, "exit") == 0))
 	              {
-	                  stream_enter_count++;
+	                  application_mode = APP_MODE_STREAM;
+
+	                  remote_cmd_index = 0U;
+	                  remote_cmd_buffer[0] = '\0';
+
+	                  ERIC_SendString(
+	                      "Returning to telemetry stream\r\n\r\n");
+
+	                  /*
+	                   * Cause telemetry to resume immediately.
+	                   */
+	                  lastTelemetryTx = 0U;
+	              }
+	              else if (remote_cmd_index == 0U)
+	              {
+	                  /*
+	                   * Blank line: just display another prompt.
+	                   */
+	                  ERIC_SendString("Command> ");
 	              }
 	              else
 	              {
-	                  stream_enter_count = 1U;
+	                  if (!TerminalConsole_ExecuteLine(
+	                          eric_uart,
+	                          remote_cmd_buffer))
+	                  {
+	                      ERIC_SendString(
+	                          "Unknown command\r\n");
+	                  }
+
+	                  remote_cmd_index = 0U;
+	                  remote_cmd_buffer[0] = '\0';
+
+	                  ERIC_SendString(
+	                      "\r\nCommand> ");
 	              }
-
-	              stream_last_enter_tick = now;
-
-	              if (stream_enter_count >= 3U)
+	          }
+	          else if (eric_byte == '\n')
+	          {
+	              /*
+	               * Ignore LF.
+	               */
+	          }
+	          else if ((eric_byte == '\b') ||
+	                   (eric_byte == 0x7FU))
+	          {
+	              if (remote_cmd_index > 0U)
 	              {
-	                  stream_enter_count = 0U;
+	                  remote_cmd_index--;
 
-	                  application_mode = APP_MODE_DASHBOARD;
+	                  remote_cmd_buffer[remote_cmd_index] = '\0';
 
 	                  /*
-	                   * For this first test, tell the Raspberry Pi that
-	                   * we have left the telemetry stream.
+	                   * Standard terminal backspace sequence.
 	                   */
-	                  ERIC_SendString(
-	                      "\r\n--- DASHBOARD MODE ---\r\n");
+//	                  ERIC_SendString("\b \b");
 	              }
+	          }
+	          else if (eric_byte == 0x1BU)
+	          {
+	              /*
+	               * Escape clears the current line.
+	               */
+	              remote_cmd_index = 0U;
+	              remote_cmd_buffer[0] = '\0';
+
+	              ERIC_SendString(
+	                  "\r\nCommand> ");
 	          }
 	          else
 	          {
-	              /*
-	               * Any other received character cancels the sequence.
-	               */
-	              stream_enter_count = 0U;
+	              if (remote_cmd_index <
+	                  (REMOTE_CMD_BUFFER_SIZE - 1U))
+	              {
+	                  remote_cmd_buffer[remote_cmd_index] =
+	                      (char)eric_byte;
+
+	                  remote_cmd_index++;
+
+	                  remote_cmd_buffer[remote_cmd_index] = '\0';
+
+	              }
 	          }
 	      }
 	  }

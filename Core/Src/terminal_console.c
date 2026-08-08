@@ -18,6 +18,7 @@
 #include "main.h"
 #include "telemetry.h"
 #include "status_led.h"
+#include "usart.h"
 
 #define TERMINAL_MAX_ARGUMENTS  8U
 
@@ -101,13 +102,39 @@ static const TerminalCommand_t terminal_commands[] =
 
 static void TerminalConsole_WriteString(UART_HandleTypeDef *huart, const char *text)
 {
-    if ((huart == NULL) ||
-        (text == NULL))
+    const uint16_t chunk_size = 16U;
+
+    if ((huart == NULL) || (text == NULL))
     {
         return;
     }
 
-    HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
+    if (huart != eric_uart)
+    {
+        HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
+
+        return;
+    }
+
+    /*
+     * Pace output sent through the eRIC4 so its radio-side
+     * buffering has time to drain.
+     */
+    while (*text != '\0')
+    {
+        uint16_t remaining;
+        uint16_t length;
+
+        remaining = (uint16_t)strlen(text);
+
+        length = (remaining > chunk_size) ? chunk_size : remaining;
+
+        HAL_UART_Transmit(huart, (uint8_t *)text, length, HAL_MAX_DELAY);
+
+        text += length;
+
+        HAL_Delay(10U);
+    }
 }
 static void TerminalConsole_Printf(
     UART_HandleTypeDef *huart,
@@ -335,6 +362,12 @@ static void TerminalConsole_CommandRefresh(UART_HandleTypeDef *huart, uint8_t ar
         return;
     }
 
+    if (huart == eric_uart)
+    {
+        TerminalConsole_WriteString(huart, "Refresh is available on the local console only\r\n");
+        return;
+    }
+
     Dashboard_Show(huart);
     Dashboard_Refresh(huart);
 }
@@ -500,6 +533,14 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart,
     char response[32];
     uint8_t value;
     ERIC_Status_t status;
+
+    if (huart == eric_uart)
+    {
+        TerminalConsole_WriteString(
+            huart,
+            "eRIC configuration is available on the local console only\r\n");
+        return;
+    }
 
     if ((argc < 2U) || (argc > 3U))
     {
@@ -1033,4 +1074,27 @@ static bool TerminalConsole_ParseUint8(const char *text,
     *value = (uint8_t)parsed_value;
 
     return true;
+}
+
+bool TerminalConsole_ExecuteLine(
+    UART_HandleTypeDef *huart,
+    char *line)
+{
+    char *argv[TERMINAL_MAX_ARGUMENTS];
+    uint8_t argc;
+
+    if ((huart == NULL) || (line == NULL))
+    {
+        return false;
+    }
+
+    argc = TerminalConsole_Tokenise(
+        line,
+        argv,
+        TERMINAL_MAX_ARGUMENTS);
+
+    return TerminalConsole_DispatchCommand(
+        huart,
+        argc,
+        argv);
 }
