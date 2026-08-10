@@ -245,7 +245,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  static GPIO_PinState status_led_state = LED_STATUS_OFF_STATE;
 	  RemoteCommand_Task();
 
 	  if (RemoteCommand_StreamJustResumed())
@@ -255,15 +254,6 @@ int main(void)
 	       * immediately after leaving command mode.
 	       */
 	      lastTelemetryTx = 0U;
-	  }
-
-	  if (TerminalConsole_IsActive())
-	  {
-	      StatusLed_SetState(STATUS_LED_COMMAND);
-	  }
-	  else
-	  {
-	      StatusLed_SetState(STATUS_LED_NORMAL);
 	  }
 
 	  if ((HAL_GetTick() - waterSensorLastUpdate) >= WATER_SENSOR_UPDATE_PERIOD_MS)

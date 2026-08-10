@@ -10,6 +10,7 @@
 #include "main.h"
 #include "eric_lora.h"
 #include "project_info.h"
+#include "status_led.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -75,15 +76,20 @@ void RemoteCommand_Task(void)
     {
         if (remote_mode == REMOTE_MODE_STREAM)
         {
-            if (eric_byte == '\r')
-            {
-                remote_mode = REMOTE_MODE_COMMAND;
+        	if (eric_byte == '\r')
+        	{
+        	    remote_mode = REMOTE_MODE_COMMAND;
 
-                RemoteCommand_ClearBuffer();
+        	    RemoteCommand_ClearBuffer();
 
-                ERIC_SendString(
-                    "REMOTE,MODE=COMMAND\r\n");
-            }
+        	    /*
+        	     * Solid blue indicates remote command mode.
+        	     */
+        	    StatusLed_SetState(STATUS_LED_COMMAND);
+
+        	    ERIC_SendString(
+        	        "REMOTE,MODE=COMMAND\r\n");
+        	}
         }
         else
         {
@@ -128,15 +134,20 @@ static void RemoteCommand_ClearBuffer(void)
 
 static void RemoteCommand_ProcessLine(void)
 {
-    if ((strcmp(remote_cmd_buffer, "quit") == 0) ||
-        (strcmp(remote_cmd_buffer, "exit") == 0))
-    {
-        remote_mode = REMOTE_MODE_STREAM;
-        stream_just_resumed = true;
+	if ((strcmp(remote_cmd_buffer, "quit") == 0) ||
+	    (strcmp(remote_cmd_buffer, "exit") == 0))
+	{
+	    remote_mode = REMOTE_MODE_STREAM;
+	    stream_just_resumed = true;
 
-        ERIC_SendString(
-            "REMOTE,MODE=STREAM\r\n");
-    }
+	    /*
+	     * Return the blue LED to normal stream behaviour.
+	     */
+	    StatusLed_SetState(STATUS_LED_NORMAL);
+
+	    ERIC_SendString(
+	        "REMOTE,MODE=STREAM\r\n");
+	}
     else if (strcmp(remote_cmd_buffer, "version") == 0)
     {
         RemoteCommand_CommandVersion();
