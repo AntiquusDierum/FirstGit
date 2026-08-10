@@ -37,15 +37,12 @@
 #include "water_sensor.h"
 #include "status_led.h"
 #include "telemetry.h"
+#include "remote_command.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef enum
-{
-    APP_MODE_STREAM = 0,
-    APP_MODE_REMOTE_COMMAND
-} ApplicationMode_t;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -69,12 +66,6 @@ uint8_t eric_uart_rx;
 
 uint32_t waterSensorLastUpdate = 0;
 
-static ApplicationMode_t application_mode = APP_MODE_STREAM;
-
-#define REMOTE_CMD_BUFFER_SIZE  80U
-
-static char remote_cmd_buffer[REMOTE_CMD_BUFFER_SIZE];
-static uint8_t remote_cmd_index = 0U;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -159,6 +150,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   StatusLed_Init();
+  RemoteCommand_Init();
   if (WaterSensor_Init(&htim2, &htim4) != HAL_OK)
   {
       Error_Handler();
@@ -254,132 +246,17 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 //	  static GPIO_PinState status_led_state = LED_STATUS_OFF_STATE;
-	  uint8_t eric_byte;
+	  RemoteCommand_Task();
 
-	  while (ERIC_ReadByte(&eric_byte))
+	  if (RemoteCommand_StreamJustResumed())
 	  {
-	      if (application_mode == APP_MODE_STREAM)
-	      {
-	          if (eric_byte == '\r')
-	          {
-	        	  application_mode = APP_MODE_REMOTE_COMMAND;
-
-	              remote_cmd_index = 0U;
-	              remote_cmd_buffer[0] = '\0';
-
-	              ERIC_SendString(
-	                  "REMOTE,MODE=COMMAND\r\n");
-	          }
-	      }
-	      else if (application_mode == APP_MODE_REMOTE_COMMAND)
-	      {
-	          if (eric_byte == '\r')
-	          {
-	              remote_cmd_buffer[remote_cmd_index] = '\0';
-
-	              if ((strcmp(remote_cmd_buffer, "quit") == 0) ||
-	                  (strcmp(remote_cmd_buffer, "exit") == 0))
-	              {
-	                  application_mode = APP_MODE_STREAM;
-
-	                  ERIC_SendString(
-	                      "REMOTE,MODE=STREAM\r\n");
-
-	                  /*
-	                   * Resume telemetry immediately.
-	                   */
-	                  lastTelemetryTx = 0U;
-	              }
-	              else if (strcmp(remote_cmd_buffer, "version") == 0)
-	              {
-	                  char response[128];
-
-	                  snprintf(
-	                      response,
-	                      sizeof(response),
-	                      "REMOTE,VERSION=0.1.0,"
-	                      "BOARD=NUCLEO-L152RE,"
-	                      "BUILD=%s %s\r\n",
-	                      __DATE__,
-	                      __TIME__);
-
-	                  ERIC_SendString(response);
-	              }
-	              else if (strcmp(remote_cmd_buffer, "uptime") == 0)
-	              {
-	                  char response[96];
-
-	                  uint32_t total_seconds;
-	                  uint32_t days;
-	                  uint32_t hours;
-	                  uint32_t minutes;
-	                  uint32_t seconds;
-
-	                  total_seconds = HAL_GetTick() / 1000U;
-
-	                  days = total_seconds / 86400U;
-	                  total_seconds %= 86400U;
-
-	                  hours = total_seconds / 3600U;
-	                  total_seconds %= 3600U;
-
-	                  minutes = total_seconds / 60U;
-	                  seconds = total_seconds % 60U;
-
-	                  snprintf(
-	                      response,
-	                      sizeof(response),
-	                      "REMOTE,UPTIME=%lud,%02lu:%02lu:%02lu\r\n",
-	                      (unsigned long)days,
-	                      (unsigned long)hours,
-	                      (unsigned long)minutes,
-	                      (unsigned long)seconds);
-
-	                  ERIC_SendString(response);
-	              }
-	              else if (strcmp(remote_cmd_buffer, "help") == 0)
-	              {
-	                  ERIC_SendString(
-	                      "REMOTE,COMMANDS=version,uptime,help,quit,exit\r\n");
-	              }else
-	              {
-	                  char response[128];
-
-	                  snprintf(
-	                      response,
-	                      sizeof(response),
-	                      "REMOTE,ERROR=UNKNOWN_COMMAND,CMD=%s\r\n",
-	                      remote_cmd_buffer);
-
-	                  ERIC_SendString(response);
-	              }
-	              /*
-	               * Every completed command is discarded after processing.
-	               */
-	              remote_cmd_index = 0U;
-	              remote_cmd_buffer[0] = '\0';
-	          }
-	          else if (eric_byte == '\n')
-	          {
-	              /*
-	               * Ignore LF.
-	               */
-	          }
-	          else
-	          {
-	              if (remote_cmd_index <
-	                  (REMOTE_CMD_BUFFER_SIZE - 1U))
-	              {
-	                  remote_cmd_buffer[remote_cmd_index] =
-	                      (char)eric_byte;
-
-	                  remote_cmd_index++;
-
-	                  remote_cmd_buffer[remote_cmd_index] = '\0';
-	              }
-	          }
-	      }
+	      /*
+	       * Cause the first telemetry packet to be transmitted
+	       * immediately after leaving command mode.
+	       */
+	      lastTelemetryTx = 0U;
 	  }
+
 	  if (TerminalConsole_IsActive())
 	  {
 	      StatusLed_SetState(STATUS_LED_COMMAND);
@@ -464,7 +341,7 @@ int main(void)
 	      }
 	  }
 
-	  if ((application_mode == APP_MODE_STREAM) && ((HAL_GetTick() - lastTelemetryTx) >= 5000U))
+	  if (RemoteCommand_IsStreamMode() && ((HAL_GetTick() - lastTelemetryTx) >= 5000U))
 	  {
 	      char telemetry[128];
 	      ERIC_Status_t tx_status;
