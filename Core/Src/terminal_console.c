@@ -97,33 +97,18 @@ static const TerminalCommand_t terminal_commands[] =
     }
 };
 
-#define TERMINAL_COMMAND_COUNT \
-    (sizeof(terminal_commands) / sizeof(terminal_commands[0]))
+#define TERMINAL_COMMAND_COUNT (sizeof(terminal_commands) / sizeof(terminal_commands[0]))
 
-static void TerminalConsole_WriteString(
-    UART_HandleTypeDef *huart,
-    const char *text)
+static void TerminalConsole_WriteString(UART_HandleTypeDef *huart, const char *text)
 {
     if ((huart == NULL) || (text == NULL))
     {
         return;
     }
 
-    HAL_UART_Transmit(
-        huart,
-        (uint8_t *)text,
-        (uint16_t)strlen(text),
-        HAL_MAX_DELAY);
-
-    /*
-     * Give the eRIC radio link time to transmit this complete
-     * message before another message is queued.
-     */
-    if (huart == eric_uart)
-    {
-        HAL_Delay(100U);
-    }
+    HAL_UART_Transmit(huart, (uint8_t *)text, (uint16_t)strlen(text), HAL_MAX_DELAY);
 }
+
 static void TerminalConsole_Printf(
     UART_HandleTypeDef *huart,
     const char *format,
