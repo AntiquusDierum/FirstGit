@@ -11,6 +11,7 @@
 #include "eric_lora.h"
 #include "project_info.h"
 #include "status_led.h"
+#include "rtc.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -38,7 +39,7 @@ static void RemoteCommand_CommandVersion(void);
 static void RemoteCommand_CommandUptime(void);
 static void RemoteCommand_CommandHelp(void);
 static void RemoteCommand_CommandUnknown(void);
-
+static void RemoteCommand_CommandSetDateTime(void);
 
 void RemoteCommand_Init(void)
 {
@@ -160,6 +161,10 @@ static void RemoteCommand_ProcessLine(void)
     {
         RemoteCommand_CommandHelp();
     }
+    else if (strncmp(remote_cmd_buffer, "setdt ", 6U) == 0)
+    {
+        RemoteCommand_CommandSetDateTime();
+    }
     else
     {
         RemoteCommand_CommandUnknown();
@@ -222,8 +227,8 @@ static void RemoteCommand_CommandUptime(void)
 
 static void RemoteCommand_CommandHelp(void)
 {
-    ERIC_SendString(
-        "REMOTE,COMMANDS=version,uptime,help,quit,exit\r\n");
+	ERIC_SendString(
+	    "REMOTE,COMMANDS=version,uptime,setdt,help,quit,exit\r\n");
 }
 
 
@@ -236,6 +241,103 @@ static void RemoteCommand_CommandUnknown(void)
         sizeof(response),
         "REMOTE,ERROR=UNKNOWN_COMMAND,CMD=%s\r\n",
         remote_cmd_buffer);
+
+    ERIC_SendString(response);
+}
+static void RemoteCommand_CommandSetDateTime(void)
+{
+    unsigned int year;
+    unsigned int month;
+    unsigned int day;
+    unsigned int hour;
+    unsigned int minute;
+    unsigned int second;
+
+    RTC_TimeTypeDef time = {0};
+    RTC_DateTypeDef date = {0};
+
+    char response[80];
+
+    /*
+     * Expected format:
+     *
+     * setdt yyyy-mm-dd hh:mm:ss
+     */
+    if (sscanf(
+            remote_cmd_buffer,
+            "setdt %u-%u-%u %u:%u:%u",
+            &year,
+            &month,
+            &day,
+            &hour,
+            &minute,
+            &second) != 6)
+    {
+        ERIC_SendString(
+            "REMOTE,ERROR=INVALID_DATETIME\r\n");
+
+        return;
+    }
+
+    /*
+     * Basic range checking.
+     */
+    if ((year < 2000U) ||
+        (year > 2099U) ||
+        (month < 1U) ||
+        (month > 12U) ||
+        (day < 1U) ||
+        (day > 31U) ||
+        (hour > 23U) ||
+        (minute > 59U) ||
+        (second > 59U))
+    {
+        ERIC_SendString(
+            "REMOTE,ERROR=INVALID_DATETIME\r\n");
+
+        return;
+    }
+
+    time.Hours = (uint8_t)hour;
+    time.Minutes = (uint8_t)minute;
+    time.Seconds = (uint8_t)second;
+
+    date.Year = (uint8_t)(year - 2000U);
+    date.Month = (uint8_t)month;
+    date.Date = (uint8_t)day;
+
+    /*
+     * The weekday is not currently important to our application.
+     */
+    date.WeekDay = RTC_WEEKDAY_MONDAY;
+
+    if ((HAL_RTC_SetTime(
+            &hrtc,
+            &time,
+            RTC_FORMAT_BIN) != HAL_OK) ||
+        (HAL_RTC_SetDate(
+            &hrtc,
+            &date,
+            RTC_FORMAT_BIN) != HAL_OK))
+    {
+        ERIC_SendString(
+            "REMOTE,ERROR=RTC_SET_FAILED\r\n");
+
+        return;
+    }
+
+    snprintf(
+        response,
+        sizeof(response),
+        "REMOTE,DATETIME=SET,"
+        "DATE=%04u-%02u-%02u,"
+        "TIME=%02u:%02u:%02u\r\n",
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second);
 
     ERIC_SendString(response);
 }
