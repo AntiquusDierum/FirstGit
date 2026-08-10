@@ -44,7 +44,7 @@
 typedef enum
 {
     APP_MODE_STREAM = 0,
-    APP_MODE_REMOTE_CONSOLE
+    APP_MODE_REMOTE_COMMAND
 } ApplicationMode_t;
 /* USER CODE END PTD */
 
@@ -262,7 +262,7 @@ int main(void)
 	      {
 	          if (eric_byte == '\r')
 	          {
-	              application_mode = APP_MODE_REMOTE_CONSOLE;
+	        	  application_mode = APP_MODE_REMOTE_COMMAND;
 
 	              remote_cmd_index = 0U;
 	              remote_cmd_buffer[0] = '\0';
@@ -271,7 +271,7 @@ int main(void)
 	                  "REMOTE,MODE=COMMAND\r\n");
 	          }
 	      }
-	      else if (application_mode == APP_MODE_REMOTE_CONSOLE)
+	      else if (application_mode == APP_MODE_REMOTE_COMMAND)
 	      {
 	          if (eric_byte == '\r')
 	          {
@@ -337,7 +337,11 @@ int main(void)
 
 	                  ERIC_SendString(response);
 	              }
-	              else
+	              else if (strcmp(remote_cmd_buffer, "help") == 0)
+	              {
+	                  ERIC_SendString(
+	                      "REMOTE,COMMANDS=version,uptime,help,quit,exit\r\n");
+	              }else
 	              {
 	                  char response[128];
 
