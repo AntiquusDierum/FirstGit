@@ -305,7 +305,50 @@ int main(void)
 
 	                  ERIC_SendString(response);
 	              }
+	              else if (strcmp(remote_cmd_buffer, "uptime") == 0)
+	              {
+	                  char response[96];
 
+	                  uint32_t total_seconds;
+	                  uint32_t days;
+	                  uint32_t hours;
+	                  uint32_t minutes;
+	                  uint32_t seconds;
+
+	                  total_seconds = HAL_GetTick() / 1000U;
+
+	                  days = total_seconds / 86400U;
+	                  total_seconds %= 86400U;
+
+	                  hours = total_seconds / 3600U;
+	                  total_seconds %= 3600U;
+
+	                  minutes = total_seconds / 60U;
+	                  seconds = total_seconds % 60U;
+
+	                  snprintf(
+	                      response,
+	                      sizeof(response),
+	                      "REMOTE,UPTIME=%lud,%02lu:%02lu:%02lu\r\n",
+	                      (unsigned long)days,
+	                      (unsigned long)hours,
+	                      (unsigned long)minutes,
+	                      (unsigned long)seconds);
+
+	                  ERIC_SendString(response);
+	              }
+	              else
+	              {
+	                  char response[128];
+
+	                  snprintf(
+	                      response,
+	                      sizeof(response),
+	                      "REMOTE,ERROR=UNKNOWN_COMMAND,CMD=%s\r\n",
+	                      remote_cmd_buffer);
+
+	                  ERIC_SendString(response);
+	              }
 	              /*
 	               * Every completed command is discarded after processing.
 	               */
