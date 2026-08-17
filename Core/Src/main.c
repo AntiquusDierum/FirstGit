@@ -191,6 +191,7 @@ int main(void)
   }
   */
 
+
   HAL_Delay(500);
 
   if (status == ERIC_OK)
