@@ -18,6 +18,7 @@
 #include <string.h>
 
 #define REMOTE_CMD_BUFFER_SIZE    80U
+#define REMOTE_CMD_TIMEOUT_MS     15000U
 
 typedef enum
 {
@@ -32,6 +33,7 @@ static char remote_cmd_buffer[REMOTE_CMD_BUFFER_SIZE];
 static uint8_t remote_cmd_index = 0U;
 
 static bool stream_just_resumed = false;
+static uint32_t remote_cmd_last_activity = 0U;
 
 static void RemoteCommand_ClearBuffer(void);
 static void RemoteCommand_ProcessLine(void);
@@ -80,6 +82,7 @@ void RemoteCommand_Task(void)
         	if (eric_byte == '\r')
         	{
         	    remote_mode = REMOTE_MODE_COMMAND;
+        	    remote_cmd_last_activity = HAL_GetTick();
 
         	    RemoteCommand_ClearBuffer();
 
@@ -94,6 +97,7 @@ void RemoteCommand_Task(void)
         }
         else
         {
+        	remote_cmd_last_activity = HAL_GetTick();
             if (eric_byte == '\r')
             {
                 remote_cmd_buffer[remote_cmd_index] = '\0';
@@ -121,6 +125,22 @@ void RemoteCommand_Task(void)
                     remote_cmd_buffer[remote_cmd_index] = '\0';
                 }
             }
+        }
+    }
+    if (remote_mode == REMOTE_MODE_COMMAND)
+    {
+        if ((HAL_GetTick() - remote_cmd_last_activity) >=
+            REMOTE_CMD_TIMEOUT_MS)
+        {
+            remote_mode = REMOTE_MODE_STREAM;
+            stream_just_resumed = true;
+
+            RemoteCommand_ClearBuffer();
+
+            StatusLed_SetState(STATUS_LED_NORMAL);
+
+            ERIC_SendString(
+                "REMOTE,MODE=STREAM\r\n");
         }
     }
 }
