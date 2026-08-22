@@ -24,11 +24,21 @@ typedef enum
 
 void Relay_Init(void);
 
-void Relay_Set(
-    Relay_t relay,
-    RelayState_t state);
+typedef enum
+{
+    RELAY_RESULT_OK = 0,
+    RELAY_RESULT_INVALID,
+    RELAY_RESULT_LOCKED_OUT
 
-RelayState_t Relay_Get(
-    Relay_t relay);
+} RelayResult_t;
+
+RelayResult_t Relay_Set(Relay_t relay, RelayState_t state);
+RelayState_t Relay_Get(Relay_t relay);
+void Relay_Task(void);
+void Relay1_SetTimeoutMs(uint32_t timeout_ms);
+void Relay1_SetLockoutMs(uint32_t lockout_ms);
+uint32_t Relay1_GetTimeoutMs(void);
+uint32_t Relay1_GetLockoutMs(void);
+uint32_t Relay1_GetLockoutRemainingMs(void);
 
 #endif

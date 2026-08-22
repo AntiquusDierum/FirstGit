@@ -1085,6 +1085,7 @@ static void TerminalConsole_CommandRelay(
 {
     Relay_t relay;
     RelayState_t state;
+    RelayResult_t result;
     uint8_t relay_number;
 
     if (argc != 3U)
@@ -1117,12 +1118,31 @@ static void TerminalConsole_CommandRelay(
 
     if (strcmp(argv[2], "on") == 0)
     {
-        Relay_Set(relay, RELAY_ON);
+    	result = Relay_Set(
+    	    relay,
+    	    RELAY_ON);
 
-        TerminalConsole_Printf(
-            huart,
-            "Relay %u switched on\r\n",
-            relay_number);
+    	if (result == RELAY_RESULT_OK)
+    	{
+    	    TerminalConsole_Printf(
+    	        huart,
+    	        "Relay %u switched on\r\n",
+    	        relay_number);
+    	}
+    	else if (result == RELAY_RESULT_LOCKED_OUT)
+    	{
+    	    TerminalConsole_Printf(
+    	        huart,
+    	        "Relay %u is locked out\r\n",
+    	        relay_number);
+    	}
+    	else
+    	{
+    	    TerminalConsole_Printf(
+    	        huart,
+    	        "Relay %u command failed\r\n",
+    	        relay_number);
+    	}
     }
     else if (strcmp(argv[2], "off") == 0)
     {

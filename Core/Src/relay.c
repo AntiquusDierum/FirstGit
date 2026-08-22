@@ -6,9 +6,19 @@
  */
 
 #include "relay.h"
+#include <stdbool.h>
 
 static RelayState_t relay1_state = RELAY_OFF;
 static RelayState_t relay2_state = RELAY_OFF;
+
+#define RELAY1_DEFAULT_TIMEOUT_MS   10000U
+#define RELAY1_DEFAULT_LOCKOUT_MS   20000U
+
+static uint32_t relay1_timeout_ms = RELAY1_DEFAULT_TIMEOUT_MS;
+static uint32_t relay1_lockout_ms = RELAY1_DEFAULT_LOCKOUT_MS;
+static uint32_t relay1_on_started = 0U;
+static uint32_t relay1_lockout_started = 0U;
+static bool relay1_lockout_active = false;
 
 void Relay_Init(void)
 {
@@ -24,11 +34,13 @@ void Relay_Init(void)
 
     relay1_state = RELAY_OFF;
     relay2_state = RELAY_OFF;
+
+    relay1_on_started = 0U;
+    relay1_lockout_started = 0U;
+    relay1_lockout_active = false;
 }
 
-void Relay_Set(
-    Relay_t relay,
-    RelayState_t state)
+RelayResult_t Relay_Set(Relay_t relay, RelayState_t state)
 {
     GPIO_PinState pin_state;
 
@@ -39,26 +51,77 @@ void Relay_Set(
 
     switch (relay)
     {
-        case RELAY_1:
+    	case RELAY_1:
+    		if ((state == RELAY_ON) && relay1_lockout_active)
+    		{
+    			return RELAY_RESULT_LOCKED_OUT;
+    		}
+
+    		if ((state == RELAY_ON) && (relay1_state == RELAY_OFF))
+    		{
+    			relay1_on_started = HAL_GetTick();
+    		}
+    		else if (state == RELAY_OFF)
+    		{
+    			relay1_on_started = 0U;
+    		}
+
+    		HAL_GPIO_WritePin(En_Relay1_GPIO_Port, En_Relay1_Pin, pin_state);
+
+    		relay1_state = state;
+
+    		return RELAY_RESULT_OK;
+
+    	case RELAY_2:
+    	    HAL_GPIO_WritePin(En_Relay2_GPIO_Port, En_Relay2_Pin, pin_state);
+
+    	    relay2_state = state;
+
+    	    return RELAY_RESULT_OK;
+
+    	default:
+    	    return RELAY_RESULT_INVALID;
+    }
+}
+
+void Relay_Task(void)
+{
+    uint32_t now;
+
+    now = HAL_GetTick();
+
+    /*
+     * Relay 1 automatic timeout.
+     */
+    if (relay1_state == RELAY_ON)
+    {
+        if ((now - relay1_on_started) >=
+            relay1_timeout_ms)
+        {
             HAL_GPIO_WritePin(
                 En_Relay1_GPIO_Port,
                 En_Relay1_Pin,
-                pin_state);
+                GPIO_PIN_RESET);
 
-            relay1_state = state;
-            break;
+            relay1_state = RELAY_OFF;
+            relay1_on_started = 0U;
 
-        case RELAY_2:
-            HAL_GPIO_WritePin(
-                En_Relay2_GPIO_Port,
-                En_Relay2_Pin,
-                pin_state);
+            relay1_lockout_active = true;
+            relay1_lockout_started = now;
+        }
+    }
 
-            relay2_state = state;
-            break;
-
-        default:
-            break;
+    /*
+     * Relay 1 lock-out expiry.
+     */
+    if (relay1_lockout_active)
+    {
+        if ((now - relay1_lockout_started) >=
+            relay1_lockout_ms)
+        {
+            relay1_lockout_active = false;
+            relay1_lockout_started = 0U;
+        }
     }
 }
 

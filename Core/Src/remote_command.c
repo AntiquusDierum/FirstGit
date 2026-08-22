@@ -374,6 +374,7 @@ static void RemoteCommand_CommandRelay(void)
     char state[8];
     Relay_t relay;
     RelayState_t relay_state;
+    RelayResult_t result;
     char response[64];
 
     /*
@@ -429,9 +430,35 @@ static void RemoteCommand_CommandRelay(void)
         return;
     }
 
-    Relay_Set(
+    result = Relay_Set(
         relay,
         relay_state);
+
+    if (result == RELAY_RESULT_LOCKED_OUT)
+    {
+        snprintf(
+            response,
+            sizeof(response),
+            "REMOTE,RELAY=%u,ERROR=LOCKED_OUT\r\n",
+            relay_number);
+
+        ERIC_SendString(response);
+
+        return;
+    }
+
+    if (result != RELAY_RESULT_OK)
+    {
+        snprintf(
+            response,
+            sizeof(response),
+            "REMOTE,RELAY=%u,ERROR=FAILED\r\n",
+            relay_number);
+
+        ERIC_SendString(response);
+
+        return;
+    }
 
     snprintf(
         response,

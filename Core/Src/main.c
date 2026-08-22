@@ -259,6 +259,8 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  RemoteCommand_Task();
 
+	  Relay_Task();
+
 	  if (RemoteCommand_StreamJustResumed())
 	  {
 	      /*
