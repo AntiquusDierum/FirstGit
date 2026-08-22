@@ -12,6 +12,7 @@
 #include "project_info.h"
 #include "status_led.h"
 #include "rtc.h"
+#include "relay.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -42,6 +43,7 @@ static void RemoteCommand_CommandUptime(void);
 static void RemoteCommand_CommandHelp(void);
 static void RemoteCommand_CommandUnknown(void);
 static void RemoteCommand_CommandSetDateTime(void);
+static void RemoteCommand_CommandRelay(void);
 
 void RemoteCommand_Init(void)
 {
@@ -185,6 +187,10 @@ static void RemoteCommand_ProcessLine(void)
     {
         RemoteCommand_CommandSetDateTime();
     }
+    else if (strncmp(remote_cmd_buffer, "relay ", 6U) == 0)
+    {
+        RemoteCommand_CommandRelay();
+    }
     else
     {
         RemoteCommand_CommandUnknown();
@@ -248,7 +254,7 @@ static void RemoteCommand_CommandUptime(void)
 static void RemoteCommand_CommandHelp(void)
 {
 	ERIC_SendString(
-	    "REMOTE,COMMANDS=version,uptime,setdt,help,quit,exit\r\n");
+			"REMOTE,COMMANDS=version,uptime,setdt,relay,help,quit,exit\r\n");
 }
 
 
@@ -358,6 +364,83 @@ static void RemoteCommand_CommandSetDateTime(void)
         hour,
         minute,
         second);
+
+    ERIC_SendString(response);
+}
+
+static void RemoteCommand_CommandRelay(void)
+{
+    unsigned int relay_number;
+    char state[8];
+    Relay_t relay;
+    RelayState_t relay_state;
+    char response[64];
+
+    /*
+     * Expected format:
+     *
+     * relay 1 on
+     * relay 1 off
+     * relay 2 on
+     * relay 2 off
+     */
+
+    if (sscanf(
+            remote_cmd_buffer,
+            "relay %u %7s",
+            &relay_number,
+            state) != 2)
+    {
+        ERIC_SendString(
+            "REMOTE,ERROR=INVALID_RELAY_COMMAND\r\n");
+
+        return;
+    }
+
+    if (relay_number == 1U)
+    {
+        relay = RELAY_1;
+    }
+    else if (relay_number == 2U)
+    {
+        relay = RELAY_2;
+    }
+    else
+    {
+        ERIC_SendString(
+            "REMOTE,ERROR=INVALID_RELAY\r\n");
+
+        return;
+    }
+
+    if (strcmp(state, "on") == 0)
+    {
+        relay_state = RELAY_ON;
+    }
+    else if (strcmp(state, "off") == 0)
+    {
+        relay_state = RELAY_OFF;
+    }
+    else
+    {
+        ERIC_SendString(
+            "REMOTE,ERROR=INVALID_RELAY_STATE\r\n");
+
+        return;
+    }
+
+    Relay_Set(
+        relay,
+        relay_state);
+
+    snprintf(
+        response,
+        sizeof(response),
+        "REMOTE,RELAY=%u,STATE=%s\r\n",
+        relay_number,
+        (relay_state == RELAY_ON)
+            ? "ON"
+            : "OFF");
 
     ERIC_SendString(response);
 }

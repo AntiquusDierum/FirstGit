@@ -19,6 +19,7 @@
 #include "telemetry.h"
 #include "status_led.h"
 #include "usart.h"
+#include "relay.h"
 
 #define TERMINAL_MAX_ARGUMENTS  8U
 
@@ -56,6 +57,7 @@ static void TerminalConsole_CommandEric(UART_HandleTypeDef *huart, uint8_t argc,
 static void TerminalConsole_CommandVersion(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static void TerminalConsole_CommandUptime(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 static bool TerminalConsole_ParseUint8(const char *text,uint8_t *value);
+static void TerminalConsole_CommandRelay(UART_HandleTypeDef *huart, uint8_t argc, char *argv[]);
 
 static const TerminalCommand_t terminal_commands[] =
 {
@@ -79,6 +81,10 @@ static const TerminalCommand_t terminal_commands[] =
         "refresh",  TerminalConsole_CommandRefresh,
         "Refresh the dashboard"
     },
+	{
+	    "relay",    TerminalConsole_CommandRelay,
+	    "relay 1|2 on|off|status"
+	},
     {
         "setdt",    TerminalConsole_CommandSetDateTime,
         "setdt yyyy-mm-dd hh:mm:ss"
@@ -1070,4 +1076,79 @@ bool TerminalConsole_ExecuteLine(
         huart,
         argc,
         argv);
+}
+
+static void TerminalConsole_CommandRelay(
+    UART_HandleTypeDef *huart,
+    uint8_t argc,
+    char *argv[])
+{
+    Relay_t relay;
+    RelayState_t state;
+    uint8_t relay_number;
+
+    if (argc != 3U)
+    {
+        TerminalConsole_WriteString(
+            huart,
+            "Usage: relay 1|2 on|off|status\r\n");
+
+        return;
+    }
+
+    if (strcmp(argv[1], "1") == 0)
+    {
+        relay = RELAY_1;
+        relay_number = 1U;
+    }
+    else if (strcmp(argv[1], "2") == 0)
+    {
+        relay = RELAY_2;
+        relay_number = 2U;
+    }
+    else
+    {
+        TerminalConsole_WriteString(
+            huart,
+            "Relay must be 1 or 2\r\n");
+
+        return;
+    }
+
+    if (strcmp(argv[2], "on") == 0)
+    {
+        Relay_Set(relay, RELAY_ON);
+
+        TerminalConsole_Printf(
+            huart,
+            "Relay %u switched on\r\n",
+            relay_number);
+    }
+    else if (strcmp(argv[2], "off") == 0)
+    {
+        Relay_Set(relay, RELAY_OFF);
+
+        TerminalConsole_Printf(
+            huart,
+            "Relay %u switched off\r\n",
+            relay_number);
+    }
+    else if (strcmp(argv[2], "status") == 0)
+    {
+        state = Relay_Get(relay);
+
+        TerminalConsole_Printf(
+            huart,
+            "Relay %u is %s\r\n",
+            relay_number,
+            (state == RELAY_ON)
+                ? "on"
+                : "off");
+    }
+    else
+    {
+        TerminalConsole_WriteString(
+            huart,
+            "Usage: relay 1|2 on|off|status\r\n");
+    }
 }

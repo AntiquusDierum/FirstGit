@@ -39,6 +39,7 @@
 #include "status_led.h"
 #include "telemetry.h"
 #include "remote_command.h"
+#include "relay.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -150,6 +151,7 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  Relay_Init();
   StatusLed_Init();
   RemoteCommand_Init();
   if (WaterSensor_Init(&htim2, &htim4) != HAL_OK)
