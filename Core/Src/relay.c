@@ -140,3 +140,48 @@ RelayState_t Relay_Get(
             return RELAY_OFF;
     }
 }
+
+uint32_t Relay1_GetLockoutRemainingMs(void)
+{
+    uint32_t now;
+    uint32_t elapsed;
+
+    if (!relay1_lockout_active)
+    {
+        return 0U;
+    }
+
+    now = HAL_GetTick();
+
+    elapsed =
+        now - relay1_lockout_started;
+
+    if (elapsed >= relay1_lockout_ms)
+    {
+        return 0U;
+    }
+
+    return relay1_lockout_ms - elapsed;
+}
+
+uint32_t Relay1_GetTimeoutMs(void)
+{
+    return relay1_timeout_ms;
+}
+
+uint32_t Relay1_GetLockoutMs(void)
+{
+    return relay1_lockout_ms;
+}
+
+void Relay1_SetTimeoutMs(
+    uint32_t timeout_ms)
+{
+    relay1_timeout_ms = timeout_ms;
+}
+
+void Relay1_SetLockoutMs(
+    uint32_t lockout_ms)
+{
+    relay1_lockout_ms = lockout_ms;
+}

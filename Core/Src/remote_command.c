@@ -13,6 +13,7 @@
 #include "status_led.h"
 #include "rtc.h"
 #include "relay.h"
+#include "rtc_service.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -279,9 +280,6 @@ static void RemoteCommand_CommandSetDateTime(void)
     unsigned int minute;
     unsigned int second;
 
-    RTC_TimeTypeDef time = {0};
-    RTC_DateTypeDef date = {0};
-
     char response[80];
 
     /*
@@ -324,27 +322,13 @@ static void RemoteCommand_CommandSetDateTime(void)
         return;
     }
 
-    time.Hours = (uint8_t)hour;
-    time.Minutes = (uint8_t)minute;
-    time.Seconds = (uint8_t)second;
-
-    date.Year = (uint8_t)(year - 2000U);
-    date.Month = (uint8_t)month;
-    date.Date = (uint8_t)day;
-
-    /*
-     * The weekday is not currently important to our application.
-     */
-    date.WeekDay = RTC_WEEKDAY_MONDAY;
-
-    if ((HAL_RTC_SetTime(
-            &hrtc,
-            &time,
-            RTC_FORMAT_BIN) != HAL_OK) ||
-        (HAL_RTC_SetDate(
-            &hrtc,
-            &date,
-            RTC_FORMAT_BIN) != HAL_OK))
+    if (RTCService_SetDateTime(
+            (uint8_t)(year - 2000U),
+            (uint8_t)month,
+            (uint8_t)day,
+            (uint8_t)hour,
+            (uint8_t)minute,
+            (uint8_t)second) != HAL_OK)
     {
         ERIC_SendString(
             "REMOTE,ERROR=RTC_SET_FAILED\r\n");

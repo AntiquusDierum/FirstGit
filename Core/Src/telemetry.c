@@ -17,6 +17,7 @@
 #include "rtc_service.h"
 #include "sht25.h"
 #include "water_sensor.h"
+#include "relay.h"
 
 #include <stdio.h>
 
@@ -31,6 +32,8 @@ void Telemetry_BuildString(char *buffer,
     HAL_StatusTypeDef temperature_status;
     HAL_StatusTypeDef humidity_status;
     HAL_StatusTypeDef water_status;
+    RelayState_t pump_state;
+    uint32_t lockout_remaining_ms;
 
     if ((buffer == NULL) ||
         (buffer_size == 0U))
@@ -38,22 +41,21 @@ void Telemetry_BuildString(char *buffer,
         return;
     }
 
-    rtc_status =
-        RTCService_GetDateTime(&date_time);
+    rtc_status = RTCService_GetDateTime(&date_time);
 
-    temperature_status =
-        SHT25_ReadTemperature(&temperature);
+    temperature_status = SHT25_ReadTemperature(&temperature);
 
-    humidity_status =
-        SHT25_ReadHumidity(&humidity);
+    humidity_status = SHT25_ReadHumidity(&humidity);
 
-    water_status =
-        WaterSensor_GetLatestMeasurement(&water);
+    water_status = WaterSensor_GetLatestMeasurement(&water);
+
+    pump_state = Relay_Get(RELAY_1);
+
+    lockout_remaining_ms = Relay1_GetLockoutRemainingMs();
 
     if (rtc_status != HAL_OK)
     {
-        snprintf(buffer,
-                 buffer_size,
+        snprintf(buffer, buffer_size,
                  "WB1,"
                  "DATE=INVALID,"
                  "TIME=INVALID,"
@@ -75,7 +77,9 @@ void Telemetry_BuildString(char *buffer,
                  "TIME=%02u:%02u:%02u,"
                  "TEMP=%.1fC,"
                  "HUM=%.1f%%,"
-                 "WATER=%luHz",
+				 "WATER=%luHz,"
+				 "PUMP=%s,"
+				 "LOCKOUT=%u",
                  date_time.year,
                  date_time.month,
                  date_time.day,
@@ -84,7 +88,9 @@ void Telemetry_BuildString(char *buffer,
                  date_time.second,
                  temperature,
                  humidity,
-                 (unsigned long)water.frequency_hz);
+                 (unsigned long)water.frequency_hz,
+				 (pump_state == RELAY_ON) ? "ON" : "OFF",
+				 (lockout_remaining_ms > 0U) ? 1U : 0U);
 
         return;
     }
