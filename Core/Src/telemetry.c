@@ -75,8 +75,8 @@ void Telemetry_BuildString(char *buffer,
                  "WB1,"
                  "DATE=%04u-%02u-%02u,"
                  "TIME=%02u:%02u:%02u,"
-                 "TEMP=%.1fC,"
-                 "HUM=%.1f%%,"
+                 "TEMP=%.2fC,"
+                 "HUM=%.2f%%,"
 				 "WATER=%luHz,"
 				 "PUMP=%s,"
 				 "LOCKOUT=%u",
@@ -107,8 +107,8 @@ void Telemetry_BuildString(char *buffer,
                  "WB1,"
                  "DATE=%04u-%02u-%02u,"
                  "TIME=%02u:%02u:%02u,"
-                 "TEMP=%.1fC,"
-                 "HUM=%.1f%%,"
+                 "TEMP=%.2fC,"
+                 "HUM=%.2f%%,"
                  "WATER=INVALID",
                  date_time.year,
                  date_time.month,
