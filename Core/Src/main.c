@@ -40,6 +40,8 @@
 #include "telemetry.h"
 #include "remote_command.h"
 #include "relay.h"
+#include "pump_control.h"
+#include "water_level.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -152,6 +154,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   Relay_Init();
+  PumpControl_Init();
   StatusLed_Init();
   RemoteCommand_Init();
   if (WaterSensor_Init(&htim2, &htim4) != HAL_OK)
@@ -230,10 +233,23 @@ int main(void)
    */
   if (WaterSensor_Measure(&water_measurement) == HAL_OK)
   {
+      float depth_cm;
+      float percent;
+
       Dashboard_SetWaterValues(
           water_measurement.count,
           water_measurement.gate_us,
           water_measurement.frequency_hz);
+
+      depth_cm =
+          WaterLevel_FrequencyToCm(
+              water_measurement.frequency_hz);
+
+      percent =
+          WaterLevel_DepthToPercent(
+              depth_cm);
+
+      PumpControl_Update(percent);
   }
 
   Dashboard_Show(debug_uart);
@@ -261,6 +277,38 @@ int main(void)
 
 	  Relay_Task();
 
+	  if (PumpControl_IsAutomatic())
+	  {
+	      if (PumpControl_IsRequested())
+	      {
+	          /*
+	           * The level controller wants the pump running.
+	           *
+	           * Do not repeatedly request ON while Relay 1
+	           * is in its mandatory rest/lockout period.
+	           */
+	          if ((Relay_Get(RELAY_1) == RELAY_OFF) &&
+	              (Relay1_GetLockoutRemainingMs() == 0U))
+	          {
+	              (void)Relay_Set(
+	                  RELAY_1,
+	                  RELAY_ON);
+	          }
+	      }
+	      else
+	      {
+	          /*
+	           * The level controller wants the pump stopped.
+	           */
+	          if (Relay_Get(RELAY_1) == RELAY_ON)
+	          {
+	              (void)Relay_Set(
+	                  RELAY_1,
+	                  RELAY_OFF);
+	          }
+	      }
+	  }
+
 	  if (RemoteCommand_StreamJustResumed())
 	  {
 	      /*
@@ -276,10 +324,23 @@ int main(void)
 
 	      if (WaterSensor_Measure(&water_measurement) == HAL_OK)
 	      {
+	          float depth_cm;
+	          float percent;
+
 	          Dashboard_SetWaterValues(
 	              water_measurement.count,
 	              water_measurement.gate_us,
 	              water_measurement.frequency_hz);
+
+	          depth_cm =
+	              WaterLevel_FrequencyToCm(
+	                  water_measurement.frequency_hz);
+
+	          percent =
+	              WaterLevel_DepthToPercent(
+	                  depth_cm);
+
+	          PumpControl_Update(percent);
 	      }
 	  }
 	  if (TerminalConsole_RedrawCommandScreen())

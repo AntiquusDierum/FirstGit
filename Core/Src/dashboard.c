@@ -12,6 +12,8 @@
 #include "rtc.h"
 #include "gpio.h"
 #include "eric_lora.h"
+#include "water_level.h"
+#include "pump_control.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -85,19 +87,6 @@ static void Dashboard_DisplayTable(UART_HandleTypeDef * huart) {
 
 	DrwTblBase(huart);			// Line 21
 }
-void Dashboard_DisplayHeartbeat(UART_HandleTypeDef * huart) {
-	char name_str[128] = "Heartbeat:\0";
-	char value_str[128] = "\0";
-
-	if (HAL_GPIO_ReadPin(GPIOA, LED_Heartbeat_Pin)) {
-		sprintf(value_str,"Low(0)");
-	}
-	else {
-		sprintf(value_str,"High(1)");
-	}
-
-	DrwCellAt(RIGHT_COL,11,name_str,value_str,huart);
-}
 void Dashboard_DisplayTemperature(UART_HandleTypeDef * huart) {
 	char name_str[128] = "Temperature:\0";
 	char value_str[128] = "\0";
@@ -107,7 +96,7 @@ void Dashboard_DisplayTemperature(UART_HandleTypeDef * huart) {
 	{
 		sprintf(value_str,"%.1f°C",temperature);
 
-		DrwCellAt(LEFT_COL,16,name_str,value_str,huart);
+		DrwCellAt(RIGHT_COL,4,name_str,value_str,huart);
 	}
 }
 void Dashboard_DisplayHumidity(UART_HandleTypeDef * huart) {
@@ -119,7 +108,7 @@ void Dashboard_DisplayHumidity(UART_HandleTypeDef * huart) {
 	{
 		sprintf(value_str,"%.1f%%",humidity);
 
-		DrwCellAt(RIGHT_COL,16,name_str,value_str,huart);
+		DrwCellAt(RIGHT_COL,5,name_str,value_str,huart);
 	}
 }
 void Dashboard_Display9V(UART_HandleTypeDef * huart) {
@@ -215,7 +204,7 @@ void Dashboard_DisplayDate(UART_HandleTypeDef *huart)
             sDate.Month,
             sDate.Date);
 
-    DrwCellAt(RIGHT_COL, 5, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 20, name_str, value_str, huart);
 }
 void Dashboard_DisplayWeekday(UART_HandleTypeDef *huart)
 {
@@ -263,7 +252,7 @@ void Dashboard_DisplayWeekday(UART_HandleTypeDef *huart)
             break;
     }
 
-    DrwCellAt(RIGHT_COL, 6, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 18, name_str, value_str, huart);
 }
 void Dashboard_DisplayTime(UART_HandleTypeDef *huart)
 {
@@ -288,7 +277,7 @@ void Dashboard_DisplayTime(UART_HandleTypeDef *huart)
             sTime.Minutes,
             sTime.Seconds);
 
-    DrwCellAt(RIGHT_COL, 4, name_str, value_str, huart);
+    DrwCellAt(LEFT_COL, 20, name_str, value_str, huart);
 }
 void Dashboard_DisplayWaterCount(UART_HandleTypeDef *huart)
 {
@@ -299,7 +288,7 @@ void Dashboard_DisplayWaterCount(UART_HandleTypeDef *huart)
             "%u",
             (unsigned int)dashboard_water_count);
 
-    DrwCellAt(RIGHT_COL, 8, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 6, name_str, value_str, huart);
 }
 
 
@@ -312,7 +301,7 @@ void Dashboard_DisplayWaterGate(UART_HandleTypeDef *huart)
             "%u µs",
             (unsigned int)dashboard_water_gate_us);
 
-    DrwCellAt(RIGHT_COL, 9, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 7, name_str, value_str, huart);
 }
 
 
@@ -326,7 +315,55 @@ void Dashboard_DisplayWaterFrequency(UART_HandleTypeDef *huart)
 
     sprintf(value_str, "%.6f MHz", frequency_mhz);
 
+    DrwCellAt(RIGHT_COL, 8, name_str, value_str, huart);
+}
+
+void Dashboard_DisplayWaterDepth(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Water Depth:";
+    char value_str[128] = "";
+
+    float depth_cm;
+
+    depth_cm = WaterLevel_FrequencyToCm(dashboard_water_frequency_hz);
+
+    sprintf(value_str, "%.1f cm", depth_cm);
+
+    DrwCellAt(RIGHT_COL, 9, name_str, value_str, huart);
+}
+
+void Dashboard_DisplayWaterPercent(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Water Level:";
+    char value_str[128] = "";
+
+    float depth_cm;
+    float percent;
+
+    depth_cm = WaterLevel_FrequencyToCm(dashboard_water_frequency_hz);
+
+    percent = WaterLevel_DepthToPercent(depth_cm);
+
+    sprintf(value_str, "%.1f%%", percent);
+
     DrwCellAt(RIGHT_COL, 10, name_str, value_str, huart);
+}
+
+void Dashboard_DisplayPumpRequest(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Pump Request:";
+    char value_str[128] = "";
+
+    if (PumpControl_IsRequested())
+    {
+        sprintf(value_str, "ON");
+    }
+    else
+    {
+        sprintf(value_str, "OFF");
+    }
+
+    DrwCellAt(RIGHT_COL, 11, name_str, value_str, huart);
 }
 
 void Dashboard_StreamTemperature(UART_HandleTypeDef * huart) {
@@ -390,6 +427,9 @@ void Dashboard_Refresh(UART_HandleTypeDef *huart)
     Dashboard_DisplayWaterCount(huart);
     Dashboard_DisplayWaterGate(huart);
     Dashboard_DisplayWaterFrequency(huart);
+    Dashboard_DisplayWaterDepth(huart);
+    Dashboard_DisplayWaterPercent(huart);
+    Dashboard_DisplayPumpRequest(huart);
 
     Dashboard_DisplayEricBaud(huart);
     Dashboard_DisplayEricAirRate(huart);
