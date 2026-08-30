@@ -78,6 +78,7 @@ void Telemetry_BuildString(char *buffer,
                  "TEMP=%.2fC,"
                  "HUM=%.2f%%,"
 				 "WATER=%luHz,"
+				 "WATER_FILT=%luHz,"
 				 "PUMP=%s,"
 				 "LOCKOUT=%u",
                  date_time.year,
@@ -89,6 +90,7 @@ void Telemetry_BuildString(char *buffer,
                  temperature,
                  humidity,
                  (unsigned long)water.frequency_hz,
+				 (unsigned long)water.filtered_frequency_hz,
 				 (pump_state == RELAY_ON) ? "ON" : "OFF",
 				 (lockout_remaining_ms > 0U) ? 1U : 0U);
 
@@ -131,14 +133,16 @@ void Telemetry_BuildString(char *buffer,
                  "TIME=%02u:%02u:%02u,"
                  "TEMP=INVALID,"
                  "HUM=INVALID,"
-                 "WATER=%luHz",
+                 "WATER=%luHz,"
+				 "WATER_FILT=%luHz",
                  date_time.year,
                  date_time.month,
                  date_time.day,
                  date_time.hour,
                  date_time.minute,
                  date_time.second,
-                 (unsigned long)water.frequency_hz);
+				 (unsigned long)water.frequency_hz,
+				 (unsigned long)water.filtered_frequency_hz);
     }
     else
     {

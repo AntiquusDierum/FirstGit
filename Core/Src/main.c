@@ -432,7 +432,7 @@ int main(void)
 
 	  if (RemoteCommand_IsStreamMode() && ((HAL_GetTick() - lastTelemetryTx) >= 5000U))
 	  {
-	      char telemetry[128];
+	      char telemetry[192];
 	      ERIC_Status_t tx_status;
 
 	      lastTelemetryTx = HAL_GetTick();
