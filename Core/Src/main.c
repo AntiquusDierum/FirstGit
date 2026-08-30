@@ -117,6 +117,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   static uint32_t lastRefresh = 0;
+  static uint32_t lastWaterDashboardRefresh = 0U;
   uint32_t lastSecond = 0xFFFFFFFF;
   uint32_t lastMinute = 0xFFFFFFFF;
   ERIC_Status_t status;
@@ -381,6 +382,25 @@ int main(void)
 	      if (!TerminalConsole_IsActive())
 	      {
 	    	  Dashboard_DisplayTime(debug_uart);
+	      }
+	  }
+
+	  if ((HAL_GetTick() - lastWaterDashboardRefresh) >= 1000U)
+	  {
+	      lastWaterDashboardRefresh = HAL_GetTick();
+
+	      if (!TerminalConsole_IsActive())
+	      {
+	          Dashboard_DisplayWaterCount(debug_uart);
+	          Dashboard_DisplayWaterGate(debug_uart);
+	          Dashboard_DisplayWaterFrequency(debug_uart);
+	          Dashboard_DisplayWaterDepth(debug_uart);
+	          Dashboard_DisplayWaterPercent(debug_uart);
+
+	          Dashboard_DisplayPumpRequest(debug_uart);
+	          Dashboard_DisplayPumpMode(debug_uart);
+	          Dashboard_DisplayPumpRelay(debug_uart);
+	          Dashboard_DisplayPumpLockout(debug_uart);
 	      }
 	  }
 

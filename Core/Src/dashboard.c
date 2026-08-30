@@ -14,6 +14,7 @@
 #include "eric_lora.h"
 #include "water_level.h"
 #include "pump_control.h"
+#include "relay.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -366,6 +367,69 @@ void Dashboard_DisplayPumpRequest(UART_HandleTypeDef *huart)
     DrwCellAt(RIGHT_COL, 11, name_str, value_str, huart);
 }
 
+void Dashboard_DisplayPumpMode(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Pump Mode:";
+    char value_str[128] = "";
+
+    if (PumpControl_IsAutomatic())
+    {
+        sprintf(value_str, "AUTO");
+    }
+    else
+    {
+        sprintf(value_str, "MANUAL");
+    }
+
+    DrwCellAt(RIGHT_COL, 12, name_str, value_str, huart);
+}
+
+void Dashboard_DisplayPumpRelay(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Pump Relay:";
+    char value_str[128] = "";
+
+    if (Relay_Get(RELAY_1) == RELAY_ON)
+    {
+        sprintf(value_str, "ON");
+    }
+    else
+    {
+        sprintf(value_str, "OFF");
+    }
+
+    DrwCellAt(RIGHT_COL, 13, name_str, value_str, huart);
+}
+
+void Dashboard_DisplayPumpLockout(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Pump Lockout:";
+    char value_str[128] = "";
+
+    uint32_t remaining_ms;
+    uint32_t remaining_seconds;
+
+    remaining_ms =
+        Relay1_GetLockoutRemainingMs();
+
+    if (remaining_ms == 0U)
+    {
+        sprintf(value_str, "READY");
+    }
+    else
+    {
+        /*
+         * Round upwards so that, for example,
+         * 250 ms remaining still displays as 1 s.
+         */
+        remaining_seconds = (remaining_ms + 999U) / 1000U;
+
+        sprintf(value_str, "%lu s", (unsigned long)remaining_seconds);
+    }
+
+    DrwCellAt(RIGHT_COL, 14, name_str, value_str, huart);
+}
+
 void Dashboard_StreamTemperature(UART_HandleTypeDef * huart) {
 	char name_str[128] = "Temperature:\0";
 	char value_str[128] = "\0";
@@ -429,7 +493,11 @@ void Dashboard_Refresh(UART_HandleTypeDef *huart)
     Dashboard_DisplayWaterFrequency(huart);
     Dashboard_DisplayWaterDepth(huart);
     Dashboard_DisplayWaterPercent(huart);
+
     Dashboard_DisplayPumpRequest(huart);
+    Dashboard_DisplayPumpMode(huart);
+    Dashboard_DisplayPumpRelay(huart);
+    Dashboard_DisplayPumpLockout(huart);
 
     Dashboard_DisplayEricBaud(huart);
     Dashboard_DisplayEricAirRate(huart);

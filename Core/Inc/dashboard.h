@@ -34,6 +34,9 @@ void Dashboard_DisplayWaterFrequency(UART_HandleTypeDef *huart);
 void Dashboard_DisplayWaterDepth(UART_HandleTypeDef *huart);
 void Dashboard_DisplayWaterPercent(UART_HandleTypeDef *huart);
 void Dashboard_DisplayPumpRequest(UART_HandleTypeDef *huart);
+void Dashboard_DisplayPumpMode(UART_HandleTypeDef *huart);
+void Dashboard_DisplayPumpRelay(UART_HandleTypeDef *huart);
+void Dashboard_DisplayPumpLockout(UART_HandleTypeDef *huart);
 
 void Dashboard_StreamTemperature(UART_HandleTypeDef *huart);
 void Dashboard_StreamHumidity(UART_HandleTypeDef *huart);
