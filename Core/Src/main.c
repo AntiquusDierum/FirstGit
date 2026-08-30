@@ -240,7 +240,8 @@ int main(void)
       Dashboard_SetWaterValues(
           water_measurement.count,
           water_measurement.gate_us,
-          water_measurement.frequency_hz);
+          water_measurement.frequency_hz,
+          water_measurement.filtered_frequency_hz);
 
       depth_cm =
           WaterLevel_FrequencyToCm(
@@ -331,7 +332,8 @@ int main(void)
 	          Dashboard_SetWaterValues(
 	              water_measurement.count,
 	              water_measurement.gate_us,
-	              water_measurement.frequency_hz);
+	              water_measurement.frequency_hz,
+	              water_measurement.filtered_frequency_hz);
 
 	          depth_cm =
 	              WaterLevel_FrequencyToCm(
@@ -394,8 +396,10 @@ int main(void)
 	          Dashboard_DisplayWaterCount(debug_uart);
 	          Dashboard_DisplayWaterGate(debug_uart);
 	          Dashboard_DisplayWaterFrequency(debug_uart);
+	          Dashboard_DisplayWaterFilteredFrequency(debug_uart);
 	          Dashboard_DisplayWaterDepth(debug_uart);
 	          Dashboard_DisplayWaterPercent(debug_uart);
+	          Dashboard_DisplayWaterLitres(debug_uart);
 
 	          Dashboard_DisplayPumpRequest(debug_uart);
 	          Dashboard_DisplayPumpMode(debug_uart);

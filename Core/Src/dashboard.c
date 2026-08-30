@@ -25,12 +25,14 @@ static uint32_t dashboardAdcValues[ADC_CHANS];
 static uint16_t dashboard_water_count = 0;
 static uint16_t dashboard_water_gate_us = 0;
 static uint32_t dashboard_water_frequency_hz = 0;
+static uint32_t dashboard_water_filtered_frequency_hz = 0;
 
-void Dashboard_SetWaterValues(uint16_t count, uint16_t gate_us, uint32_t frequency_hz)
+void Dashboard_SetWaterValues(uint16_t count, uint16_t gate_us, uint32_t frequency_hz, uint32_t filtered_frequency_hz)
 {
     dashboard_water_count = count;
     dashboard_water_gate_us = gate_us;
     dashboard_water_frequency_hz = frequency_hz;
+    dashboard_water_filtered_frequency_hz = filtered_frequency_hz;
 }
 
 static void Dashboard_DisplayTable(UART_HandleTypeDef *huart);
@@ -319,6 +321,18 @@ void Dashboard_DisplayWaterFrequency(UART_HandleTypeDef *huart)
     DrwCellAt(RIGHT_COL, 8, name_str, value_str, huart);
 }
 
+void Dashboard_DisplayWaterFilteredFrequency(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Filtered Frequency:";
+    char value_str[128] = "";
+
+    float frequency_mhz = (float)dashboard_water_filtered_frequency_hz / 1000000.0f;
+
+    sprintf(value_str, "%.6f MHz", frequency_mhz);
+
+    DrwCellAt(RIGHT_COL, 9, name_str, value_str, huart);
+}
+
 void Dashboard_DisplayWaterDepth(UART_HandleTypeDef *huart)
 {
     char name_str[128] = "Water Depth:";
@@ -330,7 +344,7 @@ void Dashboard_DisplayWaterDepth(UART_HandleTypeDef *huart)
 
     sprintf(value_str, "%.1f cm", depth_cm);
 
-    DrwCellAt(RIGHT_COL, 9, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 10, name_str, value_str, huart);
 }
 
 void Dashboard_DisplayWaterPercent(UART_HandleTypeDef *huart)
@@ -347,7 +361,24 @@ void Dashboard_DisplayWaterPercent(UART_HandleTypeDef *huart)
 
     sprintf(value_str, "%.1f%%", percent);
 
-    DrwCellAt(RIGHT_COL, 10, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 11, name_str, value_str, huart);
+}
+
+void Dashboard_DisplayWaterLitres(UART_HandleTypeDef *huart)
+{
+    char name_str[128] = "Usable Water:";
+    char value_str[128] = "";
+
+    float depth_cm;
+    float litres;
+
+    depth_cm = WaterLevel_FrequencyToCm(dashboard_water_frequency_hz);
+
+    litres = WaterLevel_DepthToLitres(depth_cm);
+
+    sprintf(value_str, "%.1f L", litres);
+
+    DrwCellAt(RIGHT_COL, 12, name_str, value_str, huart);
 }
 
 void Dashboard_DisplayPumpRequest(UART_HandleTypeDef *huart)
@@ -364,7 +395,7 @@ void Dashboard_DisplayPumpRequest(UART_HandleTypeDef *huart)
         sprintf(value_str, "OFF");
     }
 
-    DrwCellAt(RIGHT_COL, 11, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 13, name_str, value_str, huart);
 }
 
 void Dashboard_DisplayPumpMode(UART_HandleTypeDef *huart)
@@ -381,7 +412,7 @@ void Dashboard_DisplayPumpMode(UART_HandleTypeDef *huart)
         sprintf(value_str, "MANUAL");
     }
 
-    DrwCellAt(RIGHT_COL, 12, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 14, name_str, value_str, huart);
 }
 
 void Dashboard_DisplayPumpRelay(UART_HandleTypeDef *huart)
@@ -398,7 +429,7 @@ void Dashboard_DisplayPumpRelay(UART_HandleTypeDef *huart)
         sprintf(value_str, "OFF");
     }
 
-    DrwCellAt(RIGHT_COL, 13, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 15, name_str, value_str, huart);
 }
 
 void Dashboard_DisplayPumpLockout(UART_HandleTypeDef *huart)
@@ -427,7 +458,7 @@ void Dashboard_DisplayPumpLockout(UART_HandleTypeDef *huart)
         sprintf(value_str, "%lu s", (unsigned long)remaining_seconds);
     }
 
-    DrwCellAt(RIGHT_COL, 14, name_str, value_str, huart);
+    DrwCellAt(RIGHT_COL, 16, name_str, value_str, huart);
 }
 
 void Dashboard_StreamTemperature(UART_HandleTypeDef * huart) {
@@ -491,8 +522,10 @@ void Dashboard_Refresh(UART_HandleTypeDef *huart)
     Dashboard_DisplayWaterCount(huart);
     Dashboard_DisplayWaterGate(huart);
     Dashboard_DisplayWaterFrequency(huart);
+    Dashboard_DisplayWaterFilteredFrequency(huart);
     Dashboard_DisplayWaterDepth(huart);
     Dashboard_DisplayWaterPercent(huart);
+    Dashboard_DisplayWaterLitres(huart);
 
     Dashboard_DisplayPumpRequest(huart);
     Dashboard_DisplayPumpMode(huart);

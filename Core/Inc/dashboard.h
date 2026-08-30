@@ -27,12 +27,15 @@ void Dashboard_Display3V3(UART_HandleTypeDef *huart);
 void Dashboard_DisplayLoRaCurrent(UART_HandleTypeDef *huart);
 void Dashboard_DisplayLoRaEnable(UART_HandleTypeDef *huart);
 
-void Dashboard_SetWaterValues(uint16_t count, uint16_t gate_us, uint32_t frequency_hz);
+void Dashboard_SetWaterValues(uint16_t count, uint16_t gate_us, uint32_t frequency_hz, uint32_t filtered_frequency_hz);
 void Dashboard_DisplayWaterCount(UART_HandleTypeDef *huart);
 void Dashboard_DisplayWaterGate(UART_HandleTypeDef *huart);
 void Dashboard_DisplayWaterFrequency(UART_HandleTypeDef *huart);
+void Dashboard_DisplayWaterFilteredFrequency(UART_HandleTypeDef *huart);
 void Dashboard_DisplayWaterDepth(UART_HandleTypeDef *huart);
 void Dashboard_DisplayWaterPercent(UART_HandleTypeDef *huart);
+void Dashboard_DisplayWaterLitres(UART_HandleTypeDef *huart);
+
 void Dashboard_DisplayPumpRequest(UART_HandleTypeDef *huart);
 void Dashboard_DisplayPumpMode(UART_HandleTypeDef *huart);
 void Dashboard_DisplayPumpRelay(UART_HandleTypeDef *huart);

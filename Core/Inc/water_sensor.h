@@ -22,6 +22,7 @@ typedef struct
     uint16_t count;
     uint16_t gate_us;
     uint32_t frequency_hz;
+    uint32_t filtered_frequency_hz;
 } WaterSensor_Measurement_t;
 
 

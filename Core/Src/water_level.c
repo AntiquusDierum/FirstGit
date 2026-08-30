@@ -115,3 +115,30 @@ float WaterLevel_DepthToPercent(float depth_cm)
 
     return percent;
 }
+
+float WaterLevel_DepthToLitres(
+    float depth_cm)
+{
+    const float empty_depth_cm = 10.0f;
+    const float full_depth_cm = 80.0f;
+    const float usable_capacity_litres = 83.0f;
+
+    float litres;
+
+    if (depth_cm <= empty_depth_cm)
+    {
+        return 0.0f;
+    }
+
+    if (depth_cm >= full_depth_cm)
+    {
+        return usable_capacity_litres;
+    }
+
+    litres =
+        ((depth_cm - empty_depth_cm) /
+         (full_depth_cm - empty_depth_cm)) *
+        usable_capacity_litres;
+
+    return litres;
+}

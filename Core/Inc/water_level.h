@@ -12,5 +12,6 @@
 
 float WaterLevel_FrequencyToCm(uint32_t frequency_hz);
 float WaterLevel_DepthToPercent(float depth_cm);
+float WaterLevel_DepthToLitres(float depth_cm);
 
 #endif
