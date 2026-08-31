@@ -243,9 +243,7 @@ int main(void)
           water_measurement.frequency_hz,
           water_measurement.filtered_frequency_hz);
 
-      depth_cm =
-          WaterLevel_FrequencyToCm(
-              water_measurement.frequency_hz);
+      depth_cm = WaterLevel_FrequencyToCm(water_measurement.filtered_frequency_hz);
 
       percent =
           WaterLevel_DepthToPercent(
@@ -335,9 +333,7 @@ int main(void)
 	              water_measurement.frequency_hz,
 	              water_measurement.filtered_frequency_hz);
 
-	          depth_cm =
-	              WaterLevel_FrequencyToCm(
-	                  water_measurement.frequency_hz);
+	          depth_cm = WaterLevel_FrequencyToCm(water_measurement.filtered_frequency_hz);
 
 	          percent =
 	              WaterLevel_DepthToPercent(
