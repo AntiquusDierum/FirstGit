@@ -17,6 +17,7 @@
 #include "rtc_service.h"
 #include "sht25.h"
 #include "water_sensor.h"
+#include "water_level.h"
 #include "relay.h"
 
 #include <stdio.h>
@@ -28,6 +29,8 @@ void Telemetry_BuildString(char *buffer,
     WaterSensor_Measurement_t water;
     float temperature;
     float humidity;
+    float water_depth_cm;
+    float water_level_percent;
     HAL_StatusTypeDef rtc_status;
     HAL_StatusTypeDef temperature_status;
     HAL_StatusTypeDef humidity_status;
@@ -48,6 +51,13 @@ void Telemetry_BuildString(char *buffer,
     humidity_status = SHT25_ReadHumidity(&humidity);
 
     water_status = WaterSensor_GetLatestMeasurement(&water);
+
+    if (water_status == HAL_OK)
+    {
+        water_depth_cm = WaterLevel_FrequencyToCm(water.filtered_frequency_hz);
+
+        water_level_percent = WaterLevel_DepthToPercent(water_depth_cm);
+    }
 
     pump_state = Relay_Get(RELAY_1);
 
@@ -80,7 +90,8 @@ void Telemetry_BuildString(char *buffer,
 				 "WATER=%luHz,"
 				 "WATER_FILT=%luHz,"
 				 "PUMP=%s,"
-				 "LOCKOUT=%u",
+				 "LOCKOUT=%u,"
+				 "LEVEL=%.1f%%",
                  date_time.year,
                  date_time.month,
                  date_time.day,
@@ -89,10 +100,11 @@ void Telemetry_BuildString(char *buffer,
                  date_time.second,
                  temperature,
                  humidity,
-                 (unsigned long)water.frequency_hz,
+				 (unsigned long)water.frequency_hz,
 				 (unsigned long)water.filtered_frequency_hz,
 				 (pump_state == RELAY_ON) ? "ON" : "OFF",
-				 (lockout_remaining_ms > 0U) ? 1U : 0U);
+				 (lockout_remaining_ms > 0U) ? 1U : 0U,
+				 water_level_percent);
 
         return;
     }
